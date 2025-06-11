@@ -1,0 +1,11 @@
+# Script specific ignores
+*.log
+*.tmp
+*.bak
+*.out
+*.err
+*.pid
+
+# General ignores
+.DS_Store
+Thumbs.db
