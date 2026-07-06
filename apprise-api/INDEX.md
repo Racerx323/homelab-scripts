@@ -1,4 +1,5 @@
 # Apprise API Deployment Package
+
 ## Complete Documentation Index
 
 Welcome! This package contains everything needed to deploy Apprise API on Debian 12 Raspberry Pi 5 with Podman.
@@ -8,6 +9,7 @@ Welcome! This package contains everything needed to deploy Apprise API on Debian
 ## 📚 Documentation Files
 
 ### Getting Started
+
 - **[QUICK_START.md](QUICK_START.md)** ⭐ **START HERE**
   - 5-minute setup guide
   - Immediate next steps
@@ -15,6 +17,7 @@ Welcome! This package contains everything needed to deploy Apprise API on Debian
   - Tips & tricks
 
 ### Core Documentation
+
 - **[README.md](README.md)**
   - Complete overview of Apprise API
   - System requirements
@@ -54,6 +57,7 @@ Welcome! This package contains everything needed to deploy Apprise API on Debian
 ## 🚀 Installation Script
 
 ### Main Script
+
 - **[install-apprise-podman.sh](install-apprise-podman.sh)**
   - Automated installation and deployment
   - Podman dependency checking
@@ -62,6 +66,7 @@ Welcome! This package contains everything needed to deploy Apprise API on Debian
   - Health verification
 
 **Usage:**
+
 ```bash
 sudo ./install-apprise-podman.sh --systemd
 ```
@@ -73,7 +78,9 @@ sudo ./install-apprise-podman.sh --systemd
 Located in `scripts/` directory:
 
 ### [logs.sh](scripts/logs.sh)
+
 View and monitor Apprise API logs
+
 ```bash
 ./scripts/logs.sh --follow          # Real-time logs
 ./scripts/logs.sh -e                # Errors only
@@ -81,7 +88,9 @@ View and monitor Apprise API logs
 ```
 
 ### [health-check.sh](scripts/health-check.sh)
+
 Check health and status of Apprise API
+
 ```bash
 ./scripts/health-check.sh           # Quick check
 ./scripts/health-check.sh --verbose # Detailed info
@@ -89,7 +98,9 @@ Check health and status of Apprise API
 ```
 
 ### [backup-config.sh](scripts/backup-config.sh)
+
 Backup and restore configuration
+
 ```bash
 ./scripts/backup-config.sh          # Create backup
 ./scripts/backup-config.sh /mnt/backups  # Custom location
@@ -102,13 +113,16 @@ Backup and restore configuration
 Located in `examples/` directory:
 
 ### [send-notification.sh](examples/send-notification.sh)
+
 Send notifications from command line
+
 ```bash
 ./examples/send-notification.sh alerts "Title" "Body text" info
 ./examples/send-notification.sh critical "Error" "Something failed" failure
 ```
 
 ### [api-examples.json](examples/api-examples.json)
+
 - Complete API endpoint reference
 - Example request/response bodies
 - Curl command examples
@@ -116,6 +130,7 @@ Send notifications from command line
 - Integration patterns
 
 ### [notification-urls.txt](examples/notification-urls.txt)
+
 - URL formats for 15+ notification services
 - Discord, Telegram, Slack, Email, etc.
 - Setup instructions for each service
@@ -125,12 +140,15 @@ Send notifications from command line
 ## 🐳 Container Configuration
 
 ### [podman-compose.yml](podman-compose.yml)
+
 Alternative deployment using podman-compose
+
 ```bash
 podman-compose -f podman-compose.yml up -d
 ```
 
 Includes:
+
 - Service configuration
 - Resource limits
 - Health checks
@@ -142,22 +160,26 @@ Includes:
 ## 📖 Reading Guide
 
 ### For First-Time Users
+
 1. Start with **[QUICK_START.md](QUICK_START.md)** (5 min read)
 2. Run installation script
 3. Send your first notification
 4. Read **[README.md](README.md)** for full overview
 
 ### For Installation & Setup
+
 1. **[INSTALLATION.md](INSTALLATION.md)** - Complete walkthrough
 2. Run **[install-apprise-podman.sh](install-apprise-podman.sh)**
 3. Use **[health-check.sh](scripts/health-check.sh)** to verify
 
 ### For Configuration & Customization
+
 1. **[CONFIGURATION.md](CONFIGURATION.md)** - All options
 2. **[examples/api-examples.json](examples/api-examples.json)** - API patterns
 3. **[examples/notification-urls.txt](examples/notification-urls.txt)** - Service URLs
 
 ### For Troubleshooting
+
 1. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Issue solutions
 2. **[logs.sh](scripts/logs.sh)** - View error logs
 3. **[health-check.sh](scripts/health-check.sh)** - Diagnose problems
@@ -167,12 +189,14 @@ Includes:
 ## 🎯 Quick Reference
 
 ### Installation (2 minutes)
+
 ```bash
 cd /path/to/apprise-api
 sudo ./install-apprise-podman.sh --systemd
 ```
 
 ### Send First Notification (1 minute)
+
 ```bash
 curl -X POST http://localhost:8000/notify \
   -H "Content-Type: application/json" \
@@ -184,11 +208,13 @@ curl -X POST http://localhost:8000/notify \
 ```
 
 ### Access API
+
 - **API Root:** `http://localhost:8000`
 - **Swagger UI:** `http://localhost:8000/docs`
 - **ReDoc:** `http://localhost:8000/redoc`
 
 ### Common Commands
+
 ```bash
 # View status
 podman ps | grep apprise
@@ -207,6 +233,7 @@ podman ps | grep apprise
 ```
 
 ### Systemd Management
+
 ```bash
 sudo systemctl start apprise-api
 sudo systemctl stop apprise-api
@@ -219,7 +246,7 @@ sudo journalctl -u apprise-api -f
 
 ## 📊 Directory Structure
 
-```
+```text
 apprise-api/
 ├── README.md                      # Overview and features
 ├── QUICK_START.md                 # 5-minute setup (START HERE)
@@ -260,11 +287,11 @@ apprise-api/
 
 ## 🔗 External Resources
 
-- **Apprise GitHub:** https://github.com/caronc/apprise
-- **Apprise Wiki:** https://github.com/caronc/apprise/wiki
-- **Supported Notifiers:** https://github.com/caronc/apprise/wiki/Apprise_Notification_Services
-- **Apprise API:** https://github.com/caronc/apprise-api
-- **Podman Docs:** https://podman.io/docs
+- **Apprise GitHub:** <https://github.com/caronc/apprise>
+- **Apprise Wiki:** <https://github.com/caronc/apprise/wiki>
+- **Supported Notifiers:** <https://github.com/caronc/apprise/wiki/Apprise_Notification_Services>
+- **Apprise API:** <https://github.com/caronc/apprise-api>
+- **Podman Docs:** <https://podman.io/docs>
 
 ---
 
@@ -285,13 +312,14 @@ apprise-api/
 2. **Configuration Questions:** See [CONFIGURATION.md](CONFIGURATION.md)
 3. **Issues & Errors:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 4. **API Questions:** See [examples/api-examples.json](examples/api-examples.json)
-5. **External Help:** https://github.com/caronc/apprise/issues
+5. **External Help:** <https://github.com/caronc/apprise/issues>
 
 ---
 
 ## ✅ Verification Checklist
 
 After installation, verify:
+
 - [ ] Container running: `podman ps | grep apprise`
 - [ ] API responsive: `curl http://localhost:8000`
 - [ ] Health check: `./scripts/health-check.sh`

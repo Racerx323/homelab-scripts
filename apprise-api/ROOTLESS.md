@@ -48,6 +48,7 @@ curl http://localhost:8000
 ```
 
 This will:
+
 1. Check if podman is installed
 2. Create `~/.apprise` directory for persistent data
 3. Pull the official Docker image
@@ -61,6 +62,7 @@ This will:
 ```
 
 This adds:
+
 - User-level systemd service (`~/.config/systemd/user/apprise-api.service`)
 - Service will start when you log in
 - Can be enabled to start automatically
@@ -210,7 +212,7 @@ curl http://<raspberry-pi-ip>:8000
 ## Differences from Rootful Mode
 
 | Feature | Rootless | Rootful (sudo) |
-|---------|----------|-----------|
+| --------- | ---------- | ----------- |
 | Data Directory | `~/.apprise` | `/var/lib/apprise` |
 | Systemd | User (`--user`) | System-wide |
 | Privileges | User account | Root/sudo required |
@@ -304,12 +306,14 @@ ssh pi@10.1.3.83 'journalctl --user -u apprise-api -n 20'
 ### From Rootless to Rootful
 
 1. Stop rootless service:
+
    ```bash
    systemctl --user stop apprise-api
    systemctl --user disable apprise-api
    ```
 
 2. Run rootful installer:
+
    ```bash
    sudo ./install-apprise-podman.sh --systemd
    ```
@@ -317,18 +321,21 @@ ssh pi@10.1.3.83 'journalctl --user -u apprise-api -n 20'
 ### From Rootful to Rootless
 
 1. Stop rootful service (as root):
+
    ```bash
    sudo systemctl stop apprise-api
    sudo systemctl disable apprise-api
    ```
 
 2. Remove rootful service file (as root):
+
    ```bash
    sudo rm /etc/systemd/system/apprise-api.service
    sudo systemctl daemon-reload
    ```
 
 3. Run rootless installer (as regular user):
+
    ```bash
    ./install-apprise-podman.sh --rootless --systemd
    ```

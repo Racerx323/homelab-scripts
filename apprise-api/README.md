@@ -47,6 +47,7 @@ cd apprise-api
 ### 2. Run Installation
 
 **System-wide (requires sudo):**
+
 ```bash
 # Basic installation (manual container management)
 sudo ./install-apprise-podman.sh
@@ -59,6 +60,7 @@ sudo ./install-apprise-podman.sh --systemd --port 8080
 ```
 
 **Rootless mode (no sudo needed):**
+
 ```bash
 # Basic rootless installation
 ./install-apprise-podman.sh --rootless
@@ -71,12 +73,14 @@ sudo ./install-apprise-podman.sh --systemd --port 8080
 ```
 
 The script will:
+
 - Download the official **caronc/apprise** Docker image from Docker Hub
 - Configure it to run with Podman on Debian 12
 - Set up systemd service if requested (user-level for rootless, system-level for sudo)
-- Make it available at http://localhost:8000
+- Make it available at <http://localhost:8000>
 
 **For rootless mode, also enable lingering to keep the service running:**
+
 ```bash
 loginctl enable-linger
 ```
@@ -102,7 +106,7 @@ curl http://localhost:8000/notify
 
 ## Directory Structure
 
-```
+```text
 apprise-api/
 ├── install-apprise-podman.sh      # Automated installation script
 ├── Dockerfile                       # Container image definition (ARM64 optimized)
@@ -131,6 +135,7 @@ sudo ./install-apprise-podman.sh --systemd
 ```
 
 **Advantages:**
+
 - Fully automated setup
 - Downloads official Docker image from Docker Hub
 - Systemd integration for auto-start
@@ -138,6 +143,7 @@ sudo ./install-apprise-podman.sh --systemd
 - Health verification
 
 **What it does:**
+
 1. Verifies Podman installation
 2. Installs dependencies (curl, wget, ca-certificates)
 3. Pulls `caronc/apprise` Docker image
@@ -151,6 +157,7 @@ podman-compose -f podman-compose.yml up -d
 ```
 
 **Advantages:**
+
 - Uses official Docker image
 - Easy to modify configuration
 - Simple scaling
@@ -175,6 +182,7 @@ podman run -d \
 ### Podman & Docker Compatibility
 
 Podman is a drop-in replacement for Docker. It can:
+
 - ✅ Pull and run Docker images directly
 - ✅ Use Docker Hub registries natively
 - ✅ Run containers without requiring a daemon
@@ -183,6 +191,7 @@ Podman is a drop-in replacement for Docker. It can:
 ### Official Apprise API Docker Image
 
 The installer uses the official `caronc/apprise` image:
+
 - ✅ Maintained by Apprise developers
 - ✅ Pre-built and tested
 - ✅ Includes all required dependencies
@@ -254,6 +263,7 @@ curl -X POST http://localhost:8000/notify \
 ## Configuration
 
 See [CONFIGURATION.md](CONFIGURATION.md) for:
+
 - Environment variables
 - Persistent storage options
 - Network configuration
@@ -263,6 +273,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for:
 ## Troubleshooting
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions to:
+
 - Container startup issues
 - API connection problems
 - Memory/resource constraints
@@ -337,6 +348,7 @@ loginctl enable-linger
 ```
 
 **Benefits:**
+
 - ✅ No sudo required for container operations
 - ✅ Better security (containers run as your user)
 - ✅ Simpler setup

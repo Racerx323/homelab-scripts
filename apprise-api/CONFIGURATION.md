@@ -53,7 +53,7 @@ podman run -d \
 ### Common Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `APPRISE_DEBUG` | `0` | Enable debug logging (0=off, 1=on) |
 | `APPRISE_PLUGINS_PATH` | `/apprise` | Path to plugins directory |
 | `APPRISE_STATIC_FILES_PATH` | `/apprise/static` | Path to static files |
@@ -70,7 +70,7 @@ podman run -d \
 
 ### Directory Structure
 
-```
+```text
 /var/lib/apprise/
 ├── urls                    # Stored notification URLs
 ├── tags/                   # Tag configurations
@@ -117,36 +117,41 @@ sudo systemctl start apprise-api
 To use a different storage directory:
 
 1. Create the new directory:
-```bash
-sudo mkdir -p /mnt/apprise-storage
-sudo chmod 755 /mnt/apprise-storage
-```
+
+    ```text
+    sudo mkdir -p /mnt/apprise-storage
+    sudo chmod 755 /mnt/apprise-storage
+    ```
 
 2. Migrate data:
-```bash
-sudo cp -r /var/lib/apprise/* /mnt/apprise-storage/
-sudo chown -R 0:0 /mnt/apprise-storage
-```
+
+    ```text
+    sudo cp -r /var/lib/apprise/* /mnt/apprise-storage/
+    sudo chown -R 0:0 /mnt/apprise-storage
+    ```
 
 3. Update systemd service:
-```bash
-sudo nano /etc/systemd/system/apprise-api.service
-```
 
-Change the volume line:
-```ini
-ExecStart=podman run --rm \
-  --name apprise-api \
-  -p 8000:8000 \
-  -v /mnt/apprise-storage:/apprise \
-  caronc/apprise
-```
+    ```text
+    sudo nano /etc/systemd/system/apprise-api.service
+    ```
 
-4. Reload and restart:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart apprise-api
-```
+4. Change the volume line:
+
+    ```text
+    ExecStart=podman run --rm \
+    --name apprise-api \
+    -p 8000:8000 \
+    -v /mnt/apprise-storage:/apprise \
+    caronc/apprise
+    ```
+
+5. Reload and restart:
+
+    ```text
+    sudo systemctl daemon-reload
+    sudo systemctl restart apprise-api
+    ```
 
 ## Network Configuration
 
@@ -192,7 +197,7 @@ sudo ufw status
 
 #### If using Firewalld
 
-```bash
+```text
 # Add port
 sudo firewall-cmd --permanent --add-port=8000/tcp
 
@@ -208,124 +213,138 @@ sudo firewall-cmd --list-all
 Change API port:
 
 1. Stop the service:
-```bash
-sudo systemctl stop apprise-api
-```
+
+    ```text
+    sudo systemctl stop apprise-api
+    ```
 
 2. Update systemd service:
-```bash
-sudo nano /etc/systemd/system/apprise-api.service
-```
 
-Change port mapping (e.g., 9000):
-```ini
-ExecStart=podman run --rm \
-  --name apprise-api \
-  -p 9000:8000 \
-  -v /var/lib/apprise:/apprise \
-  caronc/apprise
-```
+    ```text
+    sudo nano /etc/systemd/system/apprise-api.service
+    ```
 
-3. Reload and restart:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart apprise-api
-```
+3. Change port mapping (e.g., 9000):
 
-4. Verify:
-```bash
-curl http://localhost:9000/notify
-```
+    ```text
+    ExecStart=podman run --rm \
+    --name apprise-api \
+    -p 9000:8000 \
+    -v /var/lib/apprise:/apprise \
+    caronc/apprise
+    ```
+
+4. Reload and restart:
+
+    ```text
+    sudo systemctl daemon-reload
+    sudo systemctl restart apprise-api
+    ```
+
+5. Verify:
+
+    ```text
+    curl http://localhost:9000/notify
+    ```
 
 ## SSL/TLS Setup
 
 ### Option 1: Reverse Proxy with Nginx
 
 1. Install nginx:
-```bash
-sudo apt-get install -y nginx
-```
+
+    ```text
+    sudo apt-get install -y nginx
+    ```
 
 2. Create SSL certificate:
-```bash
-sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot certonly --standalone -d your-domain.com
-```
+
+    ```text
+    sudo apt-get install -y certbot python3-certbot-nginx
+    sudo certbot certonly --standalone -d your-domain.com
+    ```
 
 3. Configure nginx reverse proxy:
-```bash
-sudo nano /etc/nginx/sites-available/apprise
-```
 
-Add configuration:
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
+    ```text
+    sudo nano /etc/nginx/sites-available/apprise
+    ```
 
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+4. Add configuration:
 
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    ```nginx
+    server {
+        listen 443 ssl http2;
+        server_name your-domain.com;
 
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+        # Security headers
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+
+        location / {
+            proxy_pass http://localhost:8000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
     }
-}
 
-# Redirect HTTP to HTTPS
-server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$host$request_uri;
-}
-```
+    # Redirect HTTP to HTTPS
+    server {
+        listen 80;
+        server_name your-domain.com;
+        return 301 https://$host$request_uri;
+    }
+    ```
 
-4. Enable site and test:
-```bash
-sudo ln -s /etc/nginx/sites-available/apprise /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
+5. Enable site and test:
+
+    ```text
+    sudo ln -s /etc/nginx/sites-available/apprise /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+    ```
 
 ### Option 2: Caddy Reverse Proxy
 
 1. Install Caddy:
-```bash
-sudo apt-get install -y caddy
-```
+
+    ```bash
+    sudo apt-get install -y caddy
+    ```
 
 2. Configure Caddyfile:
-```bash
-sudo nano /etc/caddy/Caddyfile
-```
 
-Add:
-```
-your-domain.com {
-    reverse_proxy localhost:8000 {
-        header_up X-Forwarded-For {http.request.remote}
-        header_up X-Forwarded-Proto {http.request.proto}
-        header_up Host {http.request.host}
+    ```bash
+    sudo nano /etc/caddy/Caddyfile
+    ```
+
+    Add:
+
+    ```text
+    your-domain.com {
+        reverse_proxy localhost:8000 {
+            header_up X-Forwarded-For {http.request.remote}
+            header_up X-Forwarded-Proto {http.request.proto}
+            header_up Host {http.request.host}
+        }
     }
-}
-```
+    ```
 
 3. Enable and restart:
-```bash
-sudo systemctl enable caddy
-sudo systemctl restart caddy
-```
+
+    ```bash
+    sudo systemctl enable caddy
+    sudo systemctl restart caddy
+    ```
 
 ## Advanced Configuration
 
@@ -355,7 +374,8 @@ sudo nano /etc/systemd/system/apprise-api.service
 ```
 
 Add to `[Service]` section:
-```ini
+
+```text
 # Memory limit: 512MB
 MemoryLimit=512M
 
@@ -364,13 +384,15 @@ CPUQuota=50%
 ```
 
 Reload and restart:
-```bash
+
+```text
 sudo systemctl daemon-reload
 sudo systemctl restart apprise-api
 ```
 
 Monitor resources:
-```bash
+
+```text
 podman stats apprise-api
 ```
 
@@ -378,7 +400,7 @@ podman stats apprise-api
 
 Edit systemd service to increase max content length:
 
-```ini
+```text
 Environment="MAX_CONTENT_LENGTH=10485760"  # 10MB
 ```
 
@@ -387,21 +409,24 @@ Environment="MAX_CONTENT_LENGTH=10485760"  # 10MB
 To add custom notification plugins:
 
 1. Create plugins directory:
-```bash
-mkdir -p /var/lib/apprise/plugins
-```
+
+    ```text
+    mkdir -p /var/lib/apprise/plugins
+    ```
 
 2. Add plugin files (Python)
 
 3. Update environment:
-```ini
-Environment="APPRISE_PLUGINS_PATH=/apprise/plugins"
-```
+
+    ```text
+    Environment="APPRISE_PLUGINS_PATH=/apprise/plugins"
+    ```
 
 4. Restart service:
-```bash
-sudo systemctl restart apprise-api
-```
+
+    ```text
+    sudo systemctl restart apprise-api
+    ```
 
 ## Notification Service Integration
 
@@ -527,6 +552,7 @@ When sending notifications, use these types for icons:
 - `failure` - Error/failure
 
 Example:
+
 ```bash
 curl -X POST http://localhost:8000/notify \
   -H "Content-Type: application/json" \
@@ -542,6 +568,7 @@ curl -X POST http://localhost:8000/notify \
 ### For Raspberry Pi 5
 
 Recommended settings:
+
 ```ini
 # Memory: 384MB for typical use
 MemoryLimit=384M

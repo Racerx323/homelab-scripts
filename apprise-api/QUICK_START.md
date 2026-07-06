@@ -46,17 +46,20 @@ systemctl status apprise-api
 Choose your notification service:
 
 **Discord** (easiest):
+
 1. Go to your Discord server
 2. Server Settings → Integrations → Webhooks
 3. Create webhook, copy the webhook URL
 4. Extract: `discord://webhook_id/webhook_token`
 
 **Telegram**:
+
 1. Message @BotFather on Telegram to create a bot (get token)
 2. Message @userinfobot to get your chat ID
 3. URL: `tgram://bot_token/chat_id`
 
 **Email**:
+
 - Gmail: `mailsmtp://email:password@smtp.gmail.com:587/?from=email@gmail.com`
 - Outlook: `mailsmtp://email:password@smtp.office365.com:587/?from=email@outlook.com`
 
@@ -114,6 +117,7 @@ curl http://localhost:8000/urls | jq .
 ### Access Web UI
 
 Open browser to one of:
+
 - `http://localhost:8000/docs` (Swagger)
 - `http://localhost:8000/redoc` (ReDoc)
 - `http://localhost:8000` (JSON API)
@@ -217,7 +221,7 @@ Then access from other machines: `http://<pi-ip>:8000`
 ## API Quick Reference
 
 | Method | Endpoint | Purpose |
-|--------|----------|---------|
+| -------- | ---------- | --------- |
 | `GET` | `/urls` | List all tags |
 | `POST` | `/add/{tag}` | Add notification URLs |
 | `POST` | `/notify/{tag}` | Send notification |
@@ -232,12 +236,13 @@ Full reference: [examples/api-examples.json](examples/api-examples.json)
 
 - 📖 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues
 - 🔍 Check logs: `podman logs apprise-api`
-- 💬 Apprise documentation: https://github.com/caronc/apprise/wiki
-- 🐛 GitHub Issues: https://github.com/caronc/apprise/issues
+- 💬 Apprise documentation: <https://github.com/caronc/apprise/wiki>
+- 🐛 GitHub Issues: <https://github.com/caronc/apprise/issues>
 
 ## Tips & Tricks
 
 **Notification Types for Icons:**
+
 ```bash
 # Green checkmark
 "type": "success"
@@ -253,16 +258,19 @@ Full reference: [examples/api-examples.json](examples/api-examples.json)
 ```
 
 **Quick Test from CLI:**
+
 ```bash
 ./examples/send-notification.sh alerts "Test" "Body text" success
 ```
 
 **Continuous Health Monitoring:**
+
 ```bash
 ./scripts/health-check.sh --monitor
 ```
 
 **Automated Backups:**
+
 ```bash
 # Add to crontab for daily backups
 0 2 * * * /path/to/apprise-api/scripts/backup-config.sh /mnt/backups

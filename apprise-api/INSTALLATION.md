@@ -29,6 +29,7 @@ free -h
 ```
 
 **Expected Output:**
+
 - OS: Debian 12 (bookworm)
 - Architecture: aarch64 (ARM64)
 - Disk: At least 2GB free
@@ -84,18 +85,21 @@ sudo ./install-apprise-podman.sh
 ```
 
 This will:
+
 - Download the official **caronc/apprise** Docker image from Docker Hub
 - Configure Podman to run the container
 - Start the container immediately
 - Make it available at `http://localhost:8000`
 
 **Requirements:**
+
 - Internet connectivity to download the Docker image (~500MB)
 - Podman installed (script will verify)
 - ~2GB free disk space
 
 **Log Output Expected:**
-```
+
+```text
 [INFO] Starting Apprise API installation on Debian 12 for Raspberry Pi 5
 [INFO] Podman version: 4.3.1
 [INFO] Installing system dependencies...
@@ -112,13 +116,15 @@ sudo ./install-apprise-podman.sh --systemd
 ```
 
 This will:
+
 - Install all dependencies
 - Set up a systemd service for auto-start on reboot
 - Create `/etc/systemd/system/apprise-api.service`
 - Display management commands
 
 **Log Output Expected:**
-```
+
+```text
 [INFO] Creating systemd service file: /etc/systemd/system/apprise-api.service
 [INFO] Systemd service created successfully
 [INFO] Enable with: systemctl enable apprise-api
@@ -230,14 +236,16 @@ sudo systemctl disable apprise-api
 ### 1. Access the API
 
 **Web Interface:**
-```
+
+```text
 http://localhost:8000/docs          # Swagger UI
 http://localhost:8000/redoc         # ReDoc
 http://localhost:8000               # API Root
 ```
 
 **From Network:**
-```
+
+```text
 http://<pi-ip>:8000/docs
 ```
 
@@ -383,7 +391,6 @@ sudo systemctl start podman
 # Try manual pull
 podman pull caronc/apprise
 ```
-```
 
 ## Uninstallation
 
@@ -436,8 +443,8 @@ sudo systemctl daemon-reload
 
 - Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - Review container logs: `podman logs apprise-api`
-- Check Apprise documentation: https://github.com/caronc/apprise
-- Visit Apprise wiki: https://github.com/caronc/apprise/wiki
+- Check Apprise documentation: <https://github.com/caronc/apprise>
+- Visit Apprise wiki: <https://github.com/caronc/apprise/wiki>
 
 ---
 
