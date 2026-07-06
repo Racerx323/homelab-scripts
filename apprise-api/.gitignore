@@ -19,3 +19,6 @@ Thumbs.db
 # Any accidentally created credential or config files
 apprise.yml
 notification-urls-local.txt
+
+# Development files
+UPDATES.md
