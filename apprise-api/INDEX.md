@@ -168,7 +168,7 @@ Includes:
 
 ### Installation (2 minutes)
 ```bash
-cd /home/aaron/code/homelab-scripts/apprise-api
+cd /path/to/apprise-api
 sudo ./install-apprise-podman.sh --systemd
 ```
 

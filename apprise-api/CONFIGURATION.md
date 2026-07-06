@@ -85,7 +85,7 @@ podman run -d \
 ```bash
 #!/bin/bash
 # Create dated backup
-BACKUP_DIR="/home/aaron/backups"
+BACKUP_DIR="$HOME/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"

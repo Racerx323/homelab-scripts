@@ -12,7 +12,7 @@ Get Apprise API up and running in 5 minutes!
 
 ```bash
 # Navigate to the apprise-api directory
-cd /home/aaron/code/homelab-scripts/apprise-api
+cd /path/to/apprise-api
 
 # Run installation (choose one)
 
@@ -265,7 +265,7 @@ Full reference: [examples/api-examples.json](examples/api-examples.json)
 **Automated Backups:**
 ```bash
 # Add to crontab for daily backups
-0 2 * * * /home/aaron/code/homelab-scripts/apprise-api/scripts/backup-config.sh /mnt/backups
+0 2 * * * /path/to/apprise-api/scripts/backup-config.sh /mnt/backups
 ```
 
 ---

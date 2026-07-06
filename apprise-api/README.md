@@ -40,7 +40,8 @@ This package provides an automated installer for the **official Apprise API Dock
 ### 1. Clone/Navigate to This Directory
 
 ```bash
-cd /home/aaron/code/homelab-scripts/apprise-api
+git clone <your-repo-url>
+cd apprise-api
 ```
 
 ### 2. Run Installation

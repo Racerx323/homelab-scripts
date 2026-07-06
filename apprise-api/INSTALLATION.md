@@ -60,7 +60,7 @@ sudo apt-get dist-upgrade -y
 ### Step 2: Navigate to the Apprise Directory
 
 ```bash
-cd /home/aaron/code/homelab-scripts/apprise-api
+cd /path/to/apprise-api
 ```
 
 **Note:** When running remotely via SSH/SCP, you only need to copy the `install-apprise-podman.sh` script. The Docker image will be downloaded directly from Docker Hub.
