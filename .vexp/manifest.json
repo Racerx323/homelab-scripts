@@ -1,0 +1,15 @@
+{
+  "file_hashes": {
+    "AGENTS.md": "10689b6c8be3e2466d71b419db3a1435f7d89ea5fe3233b91e60df431d79993c",
+    "README.md": "5abb9354909772d2dee4b8e84bb59038ad8325d00b342ca602d1f3c0482fe9b9"
+  },
+  "indexed_at_commit": "007123a9387db06c9c348abe31b0684fa56b96e2",
+  "indexed_at_timestamp": "2026-07-07T17:13:23.682215386+00:00",
+  "schema_version": 3,
+  "stats": {
+    "total_edges": 9,
+    "total_files": 2,
+    "total_nodes": 11
+  },
+  "vexp_version": "2.1.0"
+}
