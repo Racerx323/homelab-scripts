@@ -1,0 +1,53 @@
+Windows Registry Editor Version 5.00
+
+; attribution: https://github.com/jimbrig/obsidian_published/blob/main/docs/Windows/SFC%20and%20DISM%20Commands.md
+; Assumptions: Windows Terminal (WT)configured to run as administrator globally
+;  - PowerShell version 7 installed
+;  - Default WT profile - PowerShell 7
+;  - WT New Instance Behavior setting - Attach to the most recently used window
+; ============================================================================
+; System File Checker (SFC) Context Menu
+; ============================================================================
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair]
+"Icon"="UserAccountControlSettings.exe"
+"MUIVerb"="System Repair Tools"
+"Position"="Bottom"
+"SubCommands"=""
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\01Scannow]
+"HasLUAShield"=""
+"MUIVerb"="Run SFC /Scannow"
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\01Scannow\command]
+@="wt.exe new-tab --title \"SFC Scan\" -p \"PowerShell 7\" -- \"cmd.exe /k sfc.exe /scannow\""
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\02ViewLog]
+"MUIVerb"="View log for SFC"
+"Icon"="notepad.exe"
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\02ViewLog\command]
+@="wt.exe -w 0 new-tab --title \"View SFC Log\" -p \"PowerShell 7\" -- \"pwsh.exe -NoExit -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACIARQB4AHQAcgBhAGMAdABpAG4AZwAgAFMARgBDACAAWwBTAFIAXQAgAGwAaQBuAGUAcwAgAGYAcgBvAG0AIABDAEIAUwAuAGwAbwBnAC4ALgAuACIAIAAtAEYAbwByAGUAZwByAG8AdQBuAGQAQwBvAGwAbwByACAAQwB5AGEAbgAKACQAcwByAGMAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGUAbgB2ADoAdwBpAG4AZABpAHIAIAAnAEwAbwBnAHMAXABDAEIAUwBcAEMAQgBTAC4AbABvAGcAJwAKACQAZABzAHQAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGUAbgB2ADoAdQBzAGUAcgBwAHIAbwBmAGkAbABlACAAJwBEAGUAcwBrAHQAbwBwAFwAUwBGAEMAXwBMAE8ARwAuAHQAeAB0ACcACgBTAGUAbABlAGMAdAAtAFMAdAByAGkAbgBnACAAJwBcAFsAUwBSAFwAXQAnACAAJABzAHIAYwAgAHwAIABGAG8AcgBFAGEAYwBoAC0ATwBiAGoAZQBjAHQAIAB7ACAAJABfAC4ATABpAG4AZQAgAH0AIAB8ACAAUwBlAHQALQBDAG8AbgB0AGUAbgB0ACAALQBQAGEAdABoACAAJABkAHMAdAAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAAKAFcAcgBpAHQAZQAtAEgAbwBzAHQAIAAiAEQAbwBuAGUALgAgAE8AcABlAG4AaQBuAGcAOgAgACQAZABzAHQAIgAgAC0ARgBvAHIAZQBnAHIAbwB1AG4AZABDAG8AbABvAHIAIABHAHIAZQBlAG4ACgBuAG8AdABlAHAAYQBkAC4AZQB4AGUAIAAkAGQAcwB0AA==\""
+
+; ============================================================================
+; DISM Image Tools Context Menu
+; ============================================================================
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\03CheckHealth]
+"HasLUAShield"=""
+"MUIVerb"="Check Health of Windows Image"
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\03CheckHealth\command]
+@="wt.exe new-tab --title \"DISM CheckHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /CheckHealth\""
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\04ScanHealth]
+"HasLUAShield"=""
+"MUIVerb"="Scan Health of Windows Image"
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\04ScanHealth\command]
+@="wt.exe new-tab --title \"DISM ScanHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /ScanHealth\""
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\05RestoreHealth]
+"HasLUAShield"=""
+"MUIVerb"="Repair Windows Image"
+
+[HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\05RestoreHealth\command]
+@="wt.exe new-tab --title \"DISM RestoreHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /RestoreHealth\""

@@ -1,0 +1,5 @@
+Windows Registry Editor Version 5.00
+
+; attribution: https://github.com/jimbrig/obsidian_published/blob/main/docs/Windows/SFC%20and%20DISM%20Commands.md
+
+[-HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair]
