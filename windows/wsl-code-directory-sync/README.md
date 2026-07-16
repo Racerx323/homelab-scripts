@@ -24,9 +24,10 @@ The notification script also requires its Apprise endpoint. Pass it with
 `-AppriseUrl`, for example:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
+pwsh.exe -NoProfile `
     -File "C:\Scripts\github_reposync_apprise_notify.ps1" `
-    -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise"
+    -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise" `
+    -EventRecordId EVENT_RECORD_ID
 ```
 
 ## Paths
@@ -37,6 +38,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 | Notification task export | `WSL2.reposync.apprise.notification.template.xml` |
 | Notification script | `C:\Scripts\github_reposync_apprise_notify.ps1` |
 | Notification log | `C:\Scripts\github_reposync_apprise_notify.log` |
+| Notification state | `C:\Scripts\github_reposync_apprise_notify.processed-events.json` |
 | WSL source | `\\wsl.localhost\Ubuntu\home\WSL_USERNAME\code` |
 | Windows destination | `C:\Users\WINDOWS_USERNAME\Documents\GitHub` |
 | Apprise endpoint | `http://APPRISE_HOST:8000/notify/apprise` |
@@ -44,6 +46,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ## Required Prerequisites
 
 Run these from an elevated PowerShell session.
+
+PowerShell 7 is required because the notifier validates the Apprise HTTP
+status with `Invoke-RestMethod -StatusCodeVariable`. Confirm `pwsh.exe` is
+available:
+
+```powershell
+pwsh.exe --version
+```
 
 Enable Task Scheduler history:
 
@@ -70,6 +80,47 @@ Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' |
     Select-Object LogName, IsEnabled, RecordCount, LastWriteTime
 ```
 
+Before importing either task, sign in as
+`WINDOWS_DOMAIN\WINDOWS_USERNAME` and validate the exact distribution, Linux
+identity, source directory, and `rsync` command that the task will use:
+
+```powershell
+wsl.exe --list --verbose
+
+$wslIdentity = (wsl.exe -d Ubuntu -u WSL_USERNAME -- whoami | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) {
+    throw "WSL identity check failed with exit code $LASTEXITCODE."
+}
+if ($wslIdentity -ne 'WSL_USERNAME') {
+    throw "Expected WSL user 'WSL_USERNAME', but whoami returned '$wslIdentity'."
+}
+
+wsl.exe -d Ubuntu -u WSL_USERNAME -- rsync --version
+if ($LASTEXITCODE -ne 0) {
+    throw "rsync availability check failed with exit code $LASTEXITCODE."
+}
+
+wsl.exe -d Ubuntu -u WSL_USERNAME -- test -d /home/WSL_USERNAME/code/
+if ($LASTEXITCODE -ne 0) {
+    throw 'The WSL source directory /home/WSL_USERNAME/code/ does not exist.'
+}
+
+New-Item -ItemType Directory -Force `
+    -Path 'C:\Users\WINDOWS_USERNAME\Documents\GitHub' | Out-Null
+
+wsl.exe -d Ubuntu -u WSL_USERNAME -- rsync -avz --delete `
+    /home/WSL_USERNAME/code/ `
+    '/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/'
+
+if ($LASTEXITCODE -ne 0) {
+    throw "WSL repository preflight failed with exit code $LASTEXITCODE."
+}
+```
+
+Do not import the task until `whoami` prints `WSL_USERNAME`, `rsync --version`
+succeeds, the source-directory check returns exit code `0`, and the exact sync
+command completes successfully.
+
 ## Task 1: WSL GitHub Repo Sync
 
 ### Sync purpose
@@ -91,13 +142,13 @@ Runs `rsync` inside WSL to mirror `~/code/` into the Windows GitHub folder.
 Program:
 
 ```text
-wsl
+wsl.exe
 ```
 
 Arguments:
 
 ```text
-rsync -avz --delete ~/code/ /mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub
+-d Ubuntu -u WSL_USERNAME -- rsync -avz --delete /home/WSL_USERNAME/code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"
 ```
 
 Notes:
@@ -156,8 +207,8 @@ Notes:
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>wsl</Command>
-      <Arguments>rsync -avz --delete /home/WSL_USERNAME/code/ /mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub</Arguments>
+      <Command>wsl.exe</Command>
+      <Arguments>-d Ubuntu -u WSL_USERNAME -- rsync -avz --delete /home/WSL_USERNAME/code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
     </Exec>
   </Actions>
 </Task>
@@ -167,7 +218,10 @@ Notes:
 
 ### Notification purpose
 
-Runs a PowerShell script when the sync task completes. The script reads the recent Task Scheduler events for `\WSL GitHub Repo Sync`, prefers Event ID `201`, extracts the action `ResultCode`, and posts a notification to Apprise.
+Runs a PowerShell script when the sync task completes. The event trigger passes
+the unique Event 201 record ID to the script. The script loads only that record,
+extracts its action `ResultCode`, suppresses duplicate retries, and posts a
+notification to Apprise.
 
 ### Recommended Event Trigger
 
@@ -185,14 +239,16 @@ Use this custom event filter. Event ID `201` is preferred because it includes th
 </QueryList>
 ```
 
-It does not include the `ResultCode`.
+The event trigger also maps `Event/System/EventRecordID` to the
+`EventRecordId` action argument. It does not include the `ResultCode`; the
+script reads that value from the correlated Event 201 record.
 
 ### Settings
 
 - Run level: highest available
 - Logon type: interactive token
 - Allow task to be run on demand: enabled
-- If already running: do not start a new instance
+- If already running: queue a new instance
 - Stop the task if it runs longer than: `1 hour`
 - Force stop if it does not end when requested: enabled
 - Restart on failure: every `1 minute`, up to `3` attempts
@@ -204,13 +260,13 @@ It does not include the `ResultCode`.
 Program:
 
 ```text
-powershell.exe
+pwsh.exe
 ```
 
 Arguments:
 
 ```text
--NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise"
+-NoProfile -WindowStyle Hidden -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise" -EventRecordId "$(EventRecordId)"
 ```
 
 ### Notification Script
@@ -223,18 +279,40 @@ C:\Scripts\github_reposync_apprise_notify.ps1
 
 ```powershell
 param(
-    [string]$AppriseUrl = 'http://APPRISE_HOST:8000/notify/apprise'
+    [string]$AppriseUrl = 'http://APPRISE_HOST:8000/notify/apprise',
+    [Parameter(Mandatory)]
+    [ValidateRange(1, 9223372036854775807)]
+    [long]$EventRecordId,
+    [ValidateNotNullOrEmpty()]
+    [string]$StorageDirectory = 'C:\Scripts',
+    [Parameter(DontShow)]
+    [scriptblock]$EventReader = {
+        param($LogName, $FilterXPath)
+        Get-WinEvent -LogName $LogName -FilterXPath $FilterXPath `
+            -ErrorAction SilentlyContinue
+    },
+    [Parameter(DontShow)]
+    [scriptblock]$RequestInvoker = {
+        param($Uri, $Body)
+        Invoke-RestMethod -Method Post -Uri $Uri -Body $Body -TimeoutSec 15 `
+            -StatusCodeVariable statusCode | Out-Null
+        return $statusCode
+    }
 )
 
 $ErrorActionPreference = 'Stop'
 
 $TaskName = "\WSL GitHub Repo Sync"
 $LogPath = "Microsoft-Windows-TaskScheduler/Operational"
-$LogFile = "C:\Scripts\github_reposync_apprise_notify.log"
-$LookbackMinutes = 10
+$LogFile = Join-Path $StorageDirectory 'github_reposync_apprise_notify.log'
+$StateFile = Join-Path $StorageDirectory 'github_reposync_apprise_notify.processed-events.json'
 
 if ($AppriseUrl -match 'APPRISE_HOST') {
     throw 'Set -AppriseUrl to your Apprise API endpoint before running this script.'
+}
+
+if (-not (Test-Path -LiteralPath $StorageDirectory)) {
+    New-Item -ItemType Directory -Path $StorageDirectory -Force | Out-Null
 }
 
 function Write-NotifyLog {
@@ -261,7 +339,7 @@ function Format-ResultCode {
 
 function Get-EventDataValue {
     param(
-        [System.Diagnostics.Eventing.Reader.EventRecord]$Event,
+        [object]$Event,
         [string]$Name
     )
 
@@ -271,60 +349,50 @@ function Get-EventDataValue {
 }
 
 try {
-    $startTime = (Get-Date).AddMinutes(-$LookbackMinutes)
-    $events = Get-WinEvent -FilterHashtable @{ LogName = $LogPath; Id = 201, 102, 103; StartTime = $startTime } |
-        Where-Object { Get-EventDataValue -Event $_ -Name 'TaskName' -eq $TaskName } |
-        Sort-Object TimeCreated -Descending
+    $eventFilter = "*[System[(EventID=201) and (EventRecordID=$EventRecordId)]]"
+    $Event = & $EventReader $LogPath $eventFilter |
+        Where-Object { (Get-EventDataValue -Event $_ -Name 'TaskName') -eq $TaskName } |
+        Select-Object -First 1
 
-    if (-not $events) {
-        Write-NotifyLog "No matching Task Scheduler event found for $TaskName in the last $LookbackMinutes minutes."
-        exit 1
+    if (-not $Event) {
+        throw "Event 201 record $EventRecordId was not found for $TaskName."
     }
 
-    # Prefer Event 201 because it is the action-completed record and contains ResultCode.
-    # Event 102 only means the task instance finished and does not prove the action succeeded.
-    $Event = $events | Where-Object { $_.Id -eq 201 } | Select-Object -First 1
-    if (-not $Event) {
-        $Event = $events | Select-Object -First 1
+    # Include the UTC event timestamp so a cleared event log can legitimately
+    # reuse a lower record ID without colliding with the previous generation.
+    $eventKey = '{0}|{1}' -f $Event.RecordId, $Event.TimeCreated.ToUniversalTime().Ticks
+    $processedEventKeys = @()
+    if (Test-Path -LiteralPath $StateFile) {
+        try {
+            $state = Get-Content -LiteralPath $StateFile -Raw |
+                ConvertFrom-Json -ErrorAction Stop
+            if ($state.LogPath -eq $LogPath) {
+                $processedEventKeys = @($state.ProcessedEventKeys)
+            }
+        }
+        catch {
+            throw "Unable to read notification state file '$StateFile': $($_.Exception.Message)"
+        }
+    }
+
+    if ($processedEventKeys -contains $eventKey) {
+        Write-NotifyLog "Skipped duplicate notification for EventKey=$eventKey."
+        return
     }
 
     $EventID = $Event.Id
-    $EventTime = $Event.TimeCreated
     $ResultCode = 'unknown'
-    $Type = 'warning'
-    $Title = "Task Status Unknown: $TaskName"
-    $Body = "Latest event for $TaskName was Event ID $EventID at $EventTime. No result code was available."
+    $rawResultCode = Get-EventDataValue -Event $Event -Name 'ResultCode'
+    $ResultCode = Format-ResultCode $rawResultCode
 
-    switch ($EventID) {
-        201 {
-            $rawResultCode = Get-EventDataValue -Event $Event -Name 'ResultCode'
-            $ResultCode = Format-ResultCode $rawResultCode
-
-            if ([string]$rawResultCode -eq '0') {
-                $Type = 'success'
-                $Title = "Task Success: $TaskName"
-                $Body = "The repo sync action completed successfully. Exit Code: $ResultCode"
-            } else {
-                $Type = 'failure'
-                $Title = "Task FAILURE: $TaskName"
-                $Body = "The repo sync action completed with a non-zero exit code. Exit Code: $ResultCode"
-            }
-        }
-        102 {
-            $Type = 'warning'
-            $Title = "Task Finished: $TaskName"
-            $Body = "The task instance finished at $EventTime, but Event ID 102 does not include the action exit code. Check Event ID 201 for the real result."
-        }
-        103 {
-            $Type = 'failure'
-            $Title = "Task Failed: $TaskName"
-            $Body = "Task Scheduler reported failure Event ID 103 at $EventTime."
-        }
-        default {
-            $Type = 'warning'
-            $Title = "Unexpected Task Event: $TaskName"
-            $Body = "Unexpected Event ID $EventID was returned for $TaskName at $EventTime. Notification sent as warning."
-        }
+    if ([string]$rawResultCode -eq '0') {
+        $Type = 'success'
+        $Title = "Task Success: $TaskName"
+        $Body = "The repo sync action completed successfully. Exit Code: $ResultCode"
+    } else {
+        $Type = 'failure'
+        $Title = "Task FAILURE: $TaskName"
+        $Body = "The repo sync action completed with a non-zero exit code. Exit Code: $ResultCode"
     }
 
     $Payload = @{
@@ -333,12 +401,23 @@ try {
         type  = $Type
     }
 
-    Invoke-RestMethod -Method Post -Uri $AppriseUrl -Body $Payload -TimeoutSec 15 | Out-Null
-    Write-NotifyLog "Sent $Type notification for EventID=$EventID ResultCode=$ResultCode."
+    $statusCode = & $RequestInvoker $AppriseUrl $Payload
+    if ($statusCode -ne 200) {
+        throw "Apprise returned HTTP $statusCode; expected HTTP 200."
+    }
+
+    $statePayload = @{
+        LogPath            = $LogPath
+        ProcessedEventKeys = @($processedEventKeys) + $eventKey
+    } | ConvertTo-Json -Depth 3
+    $temporaryStateFile = "$StateFile.tmp"
+    Set-Content -LiteralPath $temporaryStateFile -Value $statePayload -Encoding utf8
+    Move-Item -LiteralPath $temporaryStateFile -Destination $StateFile -Force
+    Write-NotifyLog "Sent $Type notification for EventID=$EventID EventRecordId=$EventRecordId ResultCode=$ResultCode."
 }
 catch {
     Write-NotifyLog "ERROR: $($_.Exception.Message)"
-    exit 1
+    throw
 }
 ```
 
@@ -363,6 +442,9 @@ This XML reflects the exported notification task. The `Subscription` value is XM
       and
       *[EventData[Data[@Name='TaskName']='\WSL GitHub Repo Sync']]
     &lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+      <ValueQueries>
+        <Value name="EventRecordId">Event/System/EventRecordID</Value>
+      </ValueQueries>
     </EventTrigger>
   </Triggers>
   <Principals>
@@ -373,7 +455,7 @@ This XML reflects the exported notification task. The `Subscription` value is XM
     </Principal>
   </Principals>
   <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <MultipleInstancesPolicy>Queue</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
@@ -399,14 +481,24 @@ This XML reflects the exported notification task. The `Subscription` value is XM
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>powershell.exe</Command>
-      <Arguments>-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise"</Arguments>
+      <Command>pwsh.exe</Command>
+      <Arguments>-NoProfile -WindowStyle Hidden -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise" -EventRecordId "$(EventRecordId)"</Arguments>
     </Exec>
   </Actions>
 </Task>
 ```
 
 ## Validation
+
+Run the notification-flow regression suite on Windows with Pester:
+
+```powershell
+Invoke-Pester -Path '.\tests\GithubRepoSyncNotify.Tests.ps1' -CI
+```
+
+The suite covers exact event correlation, missing events, duplicate replay,
+malformed state, Apprise exceptions and non-200 responses, successful logging,
+and state persistence without contacting a live Apprise service.
 
 ### Check Registered Tasks
 
@@ -451,13 +543,13 @@ Get-Content -LiteralPath 'C:\Scripts\github_reposync_apprise_notify.log' -Tail 5
 Expected success line:
 
 ```text
-Sent success notification for EventID=201 ResultCode=0.
+Sent success notification for EventID=201 EventRecordId=<record-id> ResultCode=0.
 ```
 
 Expected failure line:
 
 ```text
-Sent failure notification for EventID=201 ResultCode=<nonzero-code>.
+Sent failure notification for EventID=201 EventRecordId=<record-id> ResultCode=<nonzero-code>.
 ```
 
 ### Test Apprise Connectivity
@@ -474,16 +566,44 @@ TcpTestSucceeded : True
 
 ### Test the Notification Script Manually
 
-Run the sync task first so there is a recent Task Scheduler event:
+Temporarily disable the automatic notification task, record the current Event
+201 boundary, run the sync task, and wait for a newer matching record. This
+prevents the manual notifier from reading a previous sync run:
 
 ```powershell
-schtasks /Run /TN "\WSL GitHub Repo Sync"
-```
+$logName = 'Microsoft-Windows-TaskScheduler/Operational'
+$syncTaskName = 'WSL GitHub Repo Sync'
+$syncEventTaskName = '\WSL GitHub Repo Sync'
+$notificationTaskName = 'WSL2.reposync.apprise.notification'
+$eventXPath = "*[System[(EventID=201)]] and *[EventData[Data[@Name='TaskName']='$syncEventTaskName']]"
 
-Then run:
+Disable-ScheduledTask -TaskName $notificationTaskName | Out-Null
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise"
+try {
+    $previousEvent = Get-WinEvent -LogName $logName -FilterXPath $eventXPath `
+        -MaxEvents 1 -ErrorAction SilentlyContinue
+    $beforeRecordId = if ($previousEvent) { $previousEvent.RecordId } else { 0 }
+
+    Start-ScheduledTask -TaskName $syncTaskName
+    $deadline = (Get-Date).AddMinutes(10)
+
+    do {
+        Start-Sleep -Seconds 2
+        $event = Get-WinEvent -LogName $logName -FilterXPath $eventXPath `
+            -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ((Get-Date) -gt $deadline) {
+            throw 'Timed out waiting for a new Event 201 from the sync task.'
+        }
+    } until ($event -and $event.RecordId -gt $beforeRecordId)
+
+    pwsh.exe -NoProfile `
+        -File 'C:\Scripts\github_reposync_apprise_notify.ps1' `
+        -AppriseUrl 'http://APPRISE_HOST:8000/notify/apprise' `
+        -EventRecordId $event.RecordId
+}
+finally {
+    Enable-ScheduledTask -TaskName $notificationTaskName | Out-Null
+}
 ```
 
 Check the Apprise notification and the script log.
@@ -524,11 +644,9 @@ Check Apprise connectivity:
 Test-NetConnection -ComputerName APPRISE_HOST -Port 8000
 ```
 
-If the script reports no matching event, the notification task may be firing too late for the 10-minute lookback. Increase:
-
-```powershell
-$LookbackMinutes = 10
-```
+If the script reports that an event record was not found, verify the
+`ValueQueries` mapping and the `-EventRecordId "$(EventRecordId)"` action
+argument in the imported notification task.
 
 ### Sync Task Shows Success but Did Not Actually Sync
 
@@ -544,13 +662,15 @@ Get-WinEvent -LogName 'Microsoft-Windows-TaskScheduler/Operational' -MaxEvents 2
 Common result:
 
 ```text
-2147942423
+2147942487
 ```
 
 This is `0x80070057`, often shown by Windows as an invalid parameter error. In that case, test the WSL command directly:
 
 ```powershell
-wsl rsync -avz --delete ~/code/ /mnt/c/Users/aaron/Documents/GitHub
+wsl.exe -d Ubuntu -u WSL_USERNAME -- rsync -avz --delete `
+    /home/WSL_USERNAME/code/ `
+    '/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/'
 ```
 
 ### Event Filter Is Missing
@@ -575,4 +695,9 @@ Update the notification task trigger to use Event ID `201`. This is the custom X
 - Keep `C:\Scripts\github_reposync_apprise_notify.ps1` backed up with the task XML exports.
 - If the Apprise server IP changes, update `$AppriseUrl` in the PowerShell script.
 - If the sync task name changes, update both the notification task event filter and `$TaskName` in the script.
+- Keep the event trigger's `EventRecordId` value query and action argument in
+  sync; they provide exact event correlation and retry deduplication.
+- The notifier stores processed keys as `<record-id>|<UTC-event-ticks>`. Exact
+  replays are suppressed, while a cleared Task Scheduler event log can safely
+  reuse lower record IDs because the new event timestamp creates a new key.
 - If the WSL distribution name or source path changes, test the `wsl rsync ...` command manually before relying on the scheduled task.

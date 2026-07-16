@@ -81,7 +81,3 @@ Windows use its normal defaults again.
 - A short negative-cache lifetime causes Windows to retry failed lookups more
   quickly, which can increase DNS query traffic.
 - This file configures the Windows DNS Client cache, not the DNS Server role.
-
-Microsoft provides general guidance on editing DNS cache TTL registry values
-and warns that incorrect registry changes can cause serious problems in its
-[DNS troubleshooting documentation](https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dns-server-not-resolve-queries-for-top-level-domain).

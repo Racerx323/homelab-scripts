@@ -13,6 +13,9 @@
       and
       *[EventData[Data[@Name='TaskName']='\WSL GitHub Repo Sync']]
     &lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+      <ValueQueries>
+        <Value name="EventRecordId">Event/System/EventRecordID</Value>
+      </ValueQueries>
     </EventTrigger>
   </Triggers>
   <Principals>
@@ -23,7 +26,7 @@
     </Principal>
   </Principals>
   <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <MultipleInstancesPolicy>Queue</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
@@ -49,8 +52,8 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>powershell.exe</Command>
-      <Arguments>-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise"</Arguments>
+      <Command>pwsh.exe</Command>
+      <Arguments>-NoProfile -WindowStyle Hidden -File "C:\Scripts\github_reposync_apprise_notify.ps1" -AppriseUrl "http://APPRISE_HOST:8000/notify/apprise" -EventRecordId "$(EventRecordId)"</Arguments>
     </Exec>
   </Actions>
 </Task>

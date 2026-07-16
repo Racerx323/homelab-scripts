@@ -41,9 +41,14 @@ permissions and should be reviewed before use on another system.
 homelab-scripts/
 ├── .github/
 │   ├── README.md
+│   ├── CODE_OF_CONDUCT.md
 │   ├── CONTRIBUTING.md
 │   ├── SECURITY.md
-│   └── ISSUE_TEMPLATE/
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── ISSUE_TEMPLATE/
+│   │   └── config.yml
+│   └── workflows/
+│       └── windows-powershell-tests.yml
 ├── windows/
 │   ├── dns-cache/
 │   │   ├── DNS_Cache_Settings.reg
@@ -51,12 +56,17 @@ homelab-scripts/
 │   ├── system-repair/
 │   │   ├── install-system-repair-menu.reg
 │   │   ├── uninstall-system-repair-menu.reg
+│   │   ├── tests/
+│   │   │   ├── README.md
+│   │   │   └── SystemRepairMenu.Tests.ps1
 │   │   └── README.md
 │   └── wsl-code-directory-sync/
 │       ├── README.md
 │       ├── WSL GitHub Repo Sync.template.xml
 │       ├── WSL2.reposync.apprise.notification.template.xml
-│       └── github_reposync_apprise_notify.ps1
+│       ├── github_reposync_apprise_notify.ps1
+│       └── tests/
+│           └── GithubRepoSyncNotify.Tests.ps1
 └── LICENSE.md
 ```
 

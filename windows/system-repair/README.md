@@ -11,12 +11,18 @@ This registry script adds a **“System Repair Tools”** submenu to the **Windo
   - `/RestoreHealth`
 - Extract **SFC** log lines tagged with **`[SR]`** from `CBS.log` into a text file and open it in Notepad
 
-All tools are launched in **Windows Terminal** using the **PowerShell 7** profile, and are intended to run **elevated** (Administrator) due to the nature of SFC/DISM.
+All tools are launched in **Windows Terminal** using the **PowerShell 7**
+profile. Each menu command explicitly requests elevation through
+`Start-Process -Verb RunAs`, so Windows displays a UAC prompt before opening
+the Administrator terminal.
 
 ## Files
 
 - `install-system-repair-menu.reg` installs the desktop context menu.
 - `uninstall-system-repair-menu.reg` removes the desktop context menu.
+- `tests/SystemRepairMenu.Tests.ps1` validates the registry launchers on
+  Windows.
+- `tests/README.md` defines the interactive UAC and Terminal test matrix.
 
 ---
 
@@ -38,12 +44,13 @@ This affects the **desktop background** context menu (right-click on empty space
 
 This script is designed around these assumptions:
 
-1. **Windows Terminal (WT) is configured to run as administrator globally**
-2. **PowerShell 7 is installed**
-3. **Default Windows Terminal profile name is “PowerShell 7”**
-4. **Windows Terminal → Startup → “New instance behavior”** is set to:  
-   **Attach to the most recently used window**  
-   (So `wt.exe new-tab ...` opens a new tab in the existing window instead of opening a new Terminal window.)
+1. **Windows Terminal is installed**
+2. **PowerShell 7 is installed at `C:\Program Files\PowerShell\7\pwsh.exe`**
+3. **A Windows Terminal profile named “PowerShell 7” exists**
+
+The registry commands address Windows Terminal through its standard absolute
+app-execution-alias path under `%LOCALAPPDATA%\Microsoft\WindowsApps`. They do
+not rely on the current directory or `PATH` to locate repair executables.
 
 ---
 
@@ -85,12 +92,13 @@ Values:
 Command executed:
 
 ```text
-wt.exe new-tab --title "SFC Scan" -p "PowerShell 7" -- "cmd.exe /k sfc.exe /scannow"
+wt.exe -w new new-tab --title "SFC Scan" -p "PowerShell 7" -d "%SystemRoot%\System32" "%ComSpec%" /k "%SystemRoot%\System32\sfc.exe" /scannow
 ```
 
 What it does:
 
-- Opens Windows Terminal and creates a new tab titled **“SFC Scan”**
+- Uses PowerShell `Start-Process -Verb RunAs` to request UAC elevation
+- Opens an elevated Windows Terminal tab titled **“SFC Scan”**
 - Uses the **PowerShell 7** Terminal profile
 - Runs **Command Prompt** and executes:
   - `sfc.exe /scannow`
@@ -107,12 +115,13 @@ Why it uses `cmd.exe`:
 Command executed:
 
 ```text
-wt.exe -w 0 new-tab --title "View SFC Log" -p "PowerShell 7" -- "pwsh.exe -NoExit -EncodedCommand <BASE64>"
+wt.exe -w new new-tab --title "View SFC Log" -p "PowerShell 7" -d "%SystemRoot%\System32" "C:\Program Files\PowerShell\7\pwsh.exe" -NoExit -EncodedCommand <BASE64>
 ```
 
 What it does:
 
-- Targets an existing Terminal window (`-w 0`) and opens a new tab titled **“View SFC Log”**
+- Opens a separate elevated Terminal window (`-w new`) with a tab titled
+  **“View SFC Log”**
 - Runs PowerShell 7 with `-NoExit` so the tab stays open
 - Uses `-EncodedCommand` to reliably pass a multi-line script (avoids complex nested quoting in `.reg` strings)
 - Extracts SFC lines marked `[SR]` from CBS log and writes them to your desktop, then opens Notepad
@@ -122,10 +131,15 @@ What it does:
 This is the exact script content in human-readable form:
 
 ```powershell
+$ErrorActionPreference = 'Stop'
 Write-Host "Extracting SFC [SR] lines from CBS.log..." -ForegroundColor Cyan
 $src = Join-Path $env:windir 'Logs\CBS\CBS.log'
-$dst = Join-Path $env:userprofile 'Desktop\SFC_LOG.txt'
-Select-String '\[SR\]' $src | ForEach-Object { $_.Line } | Set-Content -Path $dst -Encoding UTF8
+$desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+if ([string]::IsNullOrWhiteSpace($desktop)) {
+    throw 'Windows did not return a Desktop known-folder path.'
+}
+$dst = Join-Path $desktop 'SFC_LOG.txt'
+Select-String '\[SR\]' $src | ForEach-Object { $_.Line } | Set-Content -LiteralPath $dst -Encoding UTF8
 Write-Host "Done. Opening: $dst" -ForegroundColor Green
 notepad.exe $dst
 ```
@@ -133,7 +147,8 @@ notepad.exe $dst
 Outputs:
 
 - Reads: `%windir%\Logs\CBS\CBS.log`
-- Writes: `%userprofile%\Desktop\SFC_LOG.txt`
+- Writes: the current Windows Desktop known folder, including redirected
+  Desktop locations such as OneDrive
 - Opens: `SFC_LOG.txt` in Notepad
 
 Icon:
@@ -148,7 +163,7 @@ Icon:
 Command executed:
 
 ```text
-wt.exe new-tab --title "DISM CheckHealth" -p "PowerShell 7" -- "cmd.exe /k Dism /Online /Cleanup-Image /CheckHealth"
+wt.exe -w new new-tab --title "DISM CheckHealth" -p "PowerShell 7" -d "%SystemRoot%\System32" "%ComSpec%" /k "%SystemRoot%\System32\Dism.exe" /Online /Cleanup-Image /CheckHealth
 ```
 
 What it does:
@@ -163,7 +178,7 @@ What it does:
 Command executed:
 
 ```text
-wt.exe new-tab --title "DISM ScanHealth" -p "PowerShell 7" -- "cmd.exe /k Dism /Online /Cleanup-Image /ScanHealth"
+wt.exe -w new new-tab --title "DISM ScanHealth" -p "PowerShell 7" -d "%SystemRoot%\System32" "%ComSpec%" /k "%SystemRoot%\System32\Dism.exe" /Online /Cleanup-Image /ScanHealth
 ```
 
 What it does:
@@ -177,7 +192,7 @@ What it does:
 Command executed:
 
 ```text
-wt.exe new-tab --title "DISM RestoreHealth" -p "PowerShell 7" -- "cmd.exe /k Dism /Online /Cleanup-Image /RestoreHealth"
+wt.exe -w new new-tab --title "DISM RestoreHealth" -p "PowerShell 7" -d "%SystemRoot%\System32" "%ComSpec%" /k "%SystemRoot%\System32\Dism.exe" /Online /Cleanup-Image /RestoreHealth
 ```
 
 What it does:
@@ -201,11 +216,20 @@ What it does:
 - `-p "PowerShell 7"`  
   Uses the Windows Terminal profile with that name.
 
-- `--`  
-  Separator: everything after `--` is the command line executed inside the tab/profile.
+- `-w new`
 
-- `-w 0`  
-  Targets a specific existing Terminal window (window index 0). Helps reduce “new window” launches when a Terminal window already exists.
+  Forces a separate elevated Terminal window. This avoids attempting to attach
+  an elevated command to an existing unelevated Terminal process.
+
+- `-d "%SystemRoot%\System32"`
+
+  Uses the protected Windows system directory as the starting directory.
+
+- `Start-Process -Verb RunAs`
+
+  Starts `wt.exe` through the Windows elevation verb. This is the mechanism
+  that guarantees the repair commands run as Administrator; `HasLUAShield`
+  only controls the displayed icon.
 
 ---
 
@@ -231,11 +255,10 @@ What it does:
 - Restart Explorer after importing.
 - On Windows 11, check **Show more options**.
 
-### Each click opens a brand-new Terminal window instead of a new tab
+### Each click opens a brand-new Terminal window
 
-- In Windows Terminal:
-  - Settings → Startup → **New instance behavior**
-  - Set to **Attach to the most recently used window**
+This is intentional. `-w new` isolates every elevated repair session from
+existing unelevated or elevated Terminal instances.
 
 ### Commands open a tab but appear to do “nothing”
 
@@ -251,8 +274,27 @@ What it does:
 
 ### Not elevated / Access denied / SFC or DISM fails
 
-- Confirm Windows Terminal is actually launching elevated when triggered from Explorer.
-- If you want elevation to be **guaranteed** regardless of Terminal settings, the commands should be wrapped with `Start-Process -Verb RunAs ...` (not implemented here since you requested a minimal-change approach).
+- Approve the UAC prompt displayed after selecting a menu command.
+- Confirm the resulting Windows Terminal title shows **Administrator**.
+- Confirm PowerShell 7 exists at
+  `C:\Program Files\PowerShell\7\pwsh.exe` and the Windows Terminal alias exists
+  at `%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe` if no prompt appears.
+- Cancelling UAC is safe: the elevated Terminal and repair command do not run.
+
+## Regression Tests
+
+Run the static Windows regression suite with PowerShell 7 and Pester 5:
+
+```powershell
+Invoke-Pester -Path '.\tests\SystemRepairMenu.Tests.ps1' -CI
+```
+
+The automated suite verifies registry parsing, explicit UAC elevation,
+separate Terminal windows, protected working directories, absolute repair
+executables, the encoded log script, and matching uninstall behavior. Complete
+the interactive scenarios in [tests/README.md](tests/README.md) on a Windows
+test system before deployment; UAC cancellation and Terminal-instance behavior
+cannot be exercised safely by unattended CI.
 
 ---
 

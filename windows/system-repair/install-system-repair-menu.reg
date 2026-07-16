@@ -1,10 +1,10 @@
 Windows Registry Editor Version 5.00
 
 ; attribution: https://github.com/jimbrig/obsidian_published/blob/main/docs/Windows/SFC%20and%20DISM%20Commands.md
-; Assumptions: Windows Terminal (WT)configured to run as administrator globally
-;  - PowerShell version 7 installed
+; Assumptions: PowerShell version 7 installed
 ;  - Default WT profile - PowerShell 7
-;  - WT New Instance Behavior setting - Attach to the most recently used window
+; Each command explicitly elevates a new Windows Terminal window with Start-Process -Verb RunAs.
+; Repair commands use absolute system paths and start in %SystemRoot%\System32.
 ; ============================================================================
 ; System File Checker (SFC) Context Menu
 ; ============================================================================
@@ -19,14 +19,14 @@ Windows Registry Editor Version 5.00
 "MUIVerb"="Run SFC /Scannow"
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\01Scannow\command]
-@="wt.exe new-tab --title \"SFC Scan\" -p \"PowerShell 7\" -- \"cmd.exe /k sfc.exe /scannow\""
+@="\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath ($env:LOCALAPPDATA + '\\Microsoft\\WindowsApps\\wt.exe') -Verb RunAs -ArgumentList @('-w','new','new-tab','--title',([char]34 + 'SFC Scan' + [char]34),'-p',([char]34 + 'PowerShell 7' + [char]34),'-d',([char]34 + $env:SystemRoot + '\\System32' + [char]34),([char]34 + $env:ComSpec + [char]34),'/k',([char]34 + $env:SystemRoot + '\\System32\\sfc.exe' + [char]34),'/scannow')\""
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\02ViewLog]
 "MUIVerb"="View log for SFC"
 "Icon"="notepad.exe"
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\02ViewLog\command]
-@="wt.exe -w 0 new-tab --title \"View SFC Log\" -p \"PowerShell 7\" -- \"pwsh.exe -NoExit -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACIARQB4AHQAcgBhAGMAdABpAG4AZwAgAFMARgBDACAAWwBTAFIAXQAgAGwAaQBuAGUAcwAgAGYAcgBvAG0AIABDAEIAUwAuAGwAbwBnAC4ALgAuACIAIAAtAEYAbwByAGUAZwByAG8AdQBuAGQAQwBvAGwAbwByACAAQwB5AGEAbgAKACQAcwByAGMAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGUAbgB2ADoAdwBpAG4AZABpAHIAIAAnAEwAbwBnAHMAXABDAEIAUwBcAEMAQgBTAC4AbABvAGcAJwAKACQAZABzAHQAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGUAbgB2ADoAdQBzAGUAcgBwAHIAbwBmAGkAbABlACAAJwBEAGUAcwBrAHQAbwBwAFwAUwBGAEMAXwBMAE8ARwAuAHQAeAB0ACcACgBTAGUAbABlAGMAdAAtAFMAdAByAGkAbgBnACAAJwBcAFsAUwBSAFwAXQAnACAAJABzAHIAYwAgAHwAIABGAG8AcgBFAGEAYwBoAC0ATwBiAGoAZQBjAHQAIAB7ACAAJABfAC4ATABpAG4AZQAgAH0AIAB8ACAAUwBlAHQALQBDAG8AbgB0AGUAbgB0ACAALQBQAGEAdABoACAAJABkAHMAdAAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAAKAFcAcgBpAHQAZQAtAEgAbwBzAHQAIAAiAEQAbwBuAGUALgAgAE8AcABlAG4AaQBuAGcAOgAgACQAZABzAHQAIgAgAC0ARgBvAHIAZQBnAHIAbwB1AG4AZABDAG8AbABvAHIAIABHAHIAZQBlAG4ACgBuAG8AdABlAHAAYQBkAC4AZQB4AGUAIAAkAGQAcwB0AA==\""
+@="\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath ($env:LOCALAPPDATA + '\\Microsoft\\WindowsApps\\wt.exe') -Verb RunAs -ArgumentList @('-w','new','new-tab','--title',([char]34 + 'View SFC Log' + [char]34),'-p',([char]34 + 'PowerShell 7' + [char]34),'-d',([char]34 + $env:SystemRoot + '\\System32' + [char]34),([char]34 + $env:ProgramFiles + '\\PowerShell\\7\\pwsh.exe' + [char]34),'-NoExit','-EncodedCommand','JABFAHIAcgBvAHIAQQBjAHQAaQBvAG4AUAByAGUAZgBlAHIAZQBuAGMAZQAgAD0AIAAnAFMAdABvAHAAJwAKAFcAcgBpAHQAZQAtAEgAbwBzAHQAIAAiAEUAeAB0AHIAYQBjAHQAaQBuAGcAIABTAEYAQwAgAFsAUwBSAF0AIABsAGkAbgBlAHMAIABmAHIAbwBtACAAQwBCAFMALgBsAG8AZwAuAC4ALgAiACAALQBGAG8AcgBlAGcAcgBvAHUAbgBkAEMAbwBsAG8AcgAgAEMAeQBhAG4ACgAkAHMAcgBjACAAPQAgAEoAbwBpAG4ALQBQAGEAdABoACAAJABlAG4AdgA6AHcAaQBuAGQAaQByACAAJwBMAG8AZwBzAFwAQwBCAFMAXABDAEIAUwAuAGwAbwBnACcACgAkAGQAZQBzAGsAdABvAHAAIAA9ACAAWwBFAG4AdgBpAHIAbwBuAG0AZQBuAHQAXQA6ADoARwBlAHQARgBvAGwAZABlAHIAUABhAHQAaAAoAFsARQBuAHYAaQByAG8AbgBtAGUAbgB0ACsAUwBwAGUAYwBpAGEAbABGAG8AbABkAGUAcgBdADoAOgBEAGUAcwBrAHQAbwBwACkACgBpAGYAIAAoAFsAcwB0AHIAaQBuAGcAXQA6ADoASQBzAE4AdQBsAGwATwByAFcAaABpAHQAZQBTAHAAYQBjAGUAKAAkAGQAZQBzAGsAdABvAHAAKQApACAAewAKACAAIAAgACAAdABoAHIAbwB3ACAAJwBXAGkAbgBkAG8AdwBzACAAZABpAGQAIABuAG8AdAAgAHIAZQB0AHUAcgBuACAAYQAgAEQAZQBzAGsAdABvAHAAIABrAG4AbwB3AG4ALQBmAG8AbABkAGUAcgAgAHAAYQB0AGgALgAnAAoAfQAKACQAZABzAHQAIAA9ACAASgBvAGkAbgAtAFAAYQB0AGgAIAAkAGQAZQBzAGsAdABvAHAAIAAnAFMARgBDAF8ATABPAEcALgB0AHgAdAAnAAoAUwBlAGwAZQBjAHQALQBTAHQAcgBpAG4AZwAgACcAXABbAFMAUgBcAF0AJwAgACQAcwByAGMAIAB8ACAARgBvAHIARQBhAGMAaAAtAE8AYgBqAGUAYwB0ACAAewAgACQAXwAuAEwAaQBuAGUAIAB9ACAAfAAgAFMAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0ATABpAHQAZQByAGEAbABQAGEAdABoACAAJABkAHMAdAAgAC0ARQBuAGMAbwBkAGkAbgBnACAAVQBUAEYAOAAKAFcAcgBpAHQAZQAtAEgAbwBzAHQAIAAiAEQAbwBuAGUALgAgAE8AcABlAG4AaQBuAGcAOgAgACQAZABzAHQAIgAgAC0ARgBvAHIAZQBnAHIAbwB1AG4AZABDAG8AbABvAHIAIABHAHIAZQBlAG4ACgBuAG8AdABlAHAAYQBkAC4AZQB4AGUAIAAkAGQAcwB0AAoA')\""
 
 ; ============================================================================
 ; DISM Image Tools Context Menu
@@ -36,18 +36,18 @@ Windows Registry Editor Version 5.00
 "MUIVerb"="Check Health of Windows Image"
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\03CheckHealth\command]
-@="wt.exe new-tab --title \"DISM CheckHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /CheckHealth\""
+@="\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath ($env:LOCALAPPDATA + '\\Microsoft\\WindowsApps\\wt.exe') -Verb RunAs -ArgumentList @('-w','new','new-tab','--title',([char]34 + 'DISM CheckHealth' + [char]34),'-p',([char]34 + 'PowerShell 7' + [char]34),'-d',([char]34 + $env:SystemRoot + '\\System32' + [char]34),([char]34 + $env:ComSpec + [char]34),'/k',([char]34 + $env:SystemRoot + '\\System32\\Dism.exe' + [char]34),'/Online','/Cleanup-Image','/CheckHealth')\""
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\04ScanHealth]
 "HasLUAShield"=""
 "MUIVerb"="Scan Health of Windows Image"
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\04ScanHealth\command]
-@="wt.exe new-tab --title \"DISM ScanHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /ScanHealth\""
+@="\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath ($env:LOCALAPPDATA + '\\Microsoft\\WindowsApps\\wt.exe') -Verb RunAs -ArgumentList @('-w','new','new-tab','--title',([char]34 + 'DISM ScanHealth' + [char]34),'-p',([char]34 + 'PowerShell 7' + [char]34),'-d',([char]34 + $env:SystemRoot + '\\System32' + [char]34),([char]34 + $env:ComSpec + [char]34),'/k',([char]34 + $env:SystemRoot + '\\System32\\Dism.exe' + [char]34),'/Online','/Cleanup-Image','/ScanHealth')\""
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\05RestoreHealth]
 "HasLUAShield"=""
 "MUIVerb"="Repair Windows Image"
 
 [HKEY_CLASSES_ROOT\DesktopBackground\Shell\SystemRepair\Shell\05RestoreHealth\command]
-@="wt.exe new-tab --title \"DISM RestoreHealth\" -p \"PowerShell 7\" -- \"cmd.exe /k Dism /Online /Cleanup-Image /RestoreHealth\""
+@="\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -WindowStyle Hidden -Command \"Start-Process -FilePath ($env:LOCALAPPDATA + '\\Microsoft\\WindowsApps\\wt.exe') -Verb RunAs -ArgumentList @('-w','new','new-tab','--title',([char]34 + 'DISM RestoreHealth' + [char]34),'-p',([char]34 + 'PowerShell 7' + [char]34),'-d',([char]34 + $env:SystemRoot + '\\System32' + [char]34),([char]34 + $env:ComSpec + [char]34),'/k',([char]34 + $env:SystemRoot + '\\System32\\Dism.exe' + [char]34),'/Online','/Cleanup-Image','/RestoreHealth')\""

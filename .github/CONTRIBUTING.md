@@ -93,8 +93,16 @@ Before opening a pull request:
 
 - Review your own diff for machine-specific or sensitive data.
 - Run all applicable automated checks.
+- Add or update tests for every behavior change, including relevant edge cases.
+- Preserve backward compatibility, or document compatibility impact, migration,
+  and rollback steps when a breaking change is unavoidable.
 - Test Windows-specific behavior on Windows when possible.
 - Add or update documentation.
+- Use the `[homelab-scripts] <Title>` pull-request title format.
+- Link related issues or pull requests.
+- Confirm the change is well-tested and documentation is updated where
+  applicable.
+- Obtain at least one peer review before merging.
 - Keep commits and the pull-request description clear and focused.
 
 Large changes should start with an issue so the design and scope can be agreed

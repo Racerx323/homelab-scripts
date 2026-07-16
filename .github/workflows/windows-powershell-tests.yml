@@ -1,0 +1,45 @@
+---
+name: Windows PowerShell tests
+
+'on':
+  pull_request:
+    paths:
+      - windows/system-repair/**
+      - windows/wsl-code-directory-sync/**
+      - .github/workflows/windows-powershell-tests.yml
+  push:
+    branches:
+      - main
+    paths:
+      - windows/system-repair/**
+      - windows/wsl-code-directory-sync/**
+      - .github/workflows/windows-powershell-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  pester:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -MaximumVersion 5.99.99 `
+              -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run Windows regression tests
+        shell: pwsh
+        run: |
+          $configuration = New-PesterConfiguration
+          $configuration.Run.Path = @(
+              './windows/system-repair/tests/SystemRepairMenu.Tests.ps1'
+              './windows/wsl-code-directory-sync/tests/GithubRepoSyncNotify.Tests.ps1'
+          )
+          $configuration.Run.Exit = $true
+          $configuration.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $configuration
