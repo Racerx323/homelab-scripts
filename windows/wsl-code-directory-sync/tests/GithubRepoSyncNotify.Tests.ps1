@@ -1,33 +1,34 @@
-function Assert-Condition {
-    param(
-        [Parameter(Mandatory)][bool]$Condition,
-        [Parameter(Mandatory)][string]$Message
-    )
+BeforeAll {
+    function Assert-Condition {
+        param(
+            [Parameter(Mandatory)][bool]$Condition,
+            [Parameter(Mandatory)][string]$Message
+        )
 
-    if (-not $Condition) {
-        throw $Message
+        if (-not $Condition) {
+            throw $Message
+        }
     }
-}
 
-function New-FakeTaskEvent {
-    param(
-        [long]$RecordId = 42,
-        [string]$TaskName = '\WSL GitHub Repo Sync',
-        [string]$ResultCode = '0',
-        [datetime]$TimeCreated = [datetime]'2026-07-16T12:00:00Z'
-    )
+    function New-FakeTaskEvent {
+        param(
+            [long]$RecordId = 42,
+            [string]$TaskName = '\WSL GitHub Repo Sync',
+            [string]$ResultCode = '0',
+            [datetime]$TimeCreated = [datetime]'2026-07-16T12:00:00Z'
+        )
 
-    $event = [pscustomobject]@{
-        Id          = 201
-        RecordId    = $RecordId
-        TimeCreated = $TimeCreated
-        TaskName    = $TaskName
-        ResultCode  = $ResultCode
-    }
-    $event | Add-Member -MemberType ScriptMethod -Name ToXml -Value {
-        $escapedTaskName = [Security.SecurityElement]::Escape($this.TaskName)
-        $escapedResultCode = [Security.SecurityElement]::Escape($this.ResultCode)
-        return @"
+        $event = [pscustomobject]@{
+            Id          = 201
+            RecordId    = $RecordId
+            TimeCreated = $TimeCreated
+            TaskName    = $TaskName
+            ResultCode  = $ResultCode
+        }
+        $event | Add-Member -MemberType ScriptMethod -Name ToXml -Value {
+            $escapedTaskName = [Security.SecurityElement]::Escape($this.TaskName)
+            $escapedResultCode = [Security.SecurityElement]::Escape($this.ResultCode)
+            return @"
 <Event>
   <EventData>
     <Data Name="TaskName">$escapedTaskName</Data>
@@ -35,8 +36,9 @@ function New-FakeTaskEvent {
   </EventData>
 </Event>
 "@
+        }
+        return $event
     }
-    return $event
 }
 
 Describe 'GitHub repository sync notification flow' {
@@ -204,5 +206,82 @@ Describe 'GitHub repository sync notification flow' {
             (Get-Content -LiteralPath $logFile -Raw) -match `
                 'ERROR: Apprise returned HTTP 204'
         ) 'HTTP 204 failure was not logged.'
+    }
+}
+
+Describe 'WSL GitHub repository sync task template' {
+    It 'uses the complete safe mirror argument contract' {
+        $templatePath = Join-Path (Split-Path -Parent $PSScriptRoot) `
+            'WSL GitHub Repo Sync.template.xml'
+        [xml]$taskXml = Get-Content -LiteralPath $templatePath -Raw
+        $arguments = [string]$taskXml.Task.Actions.Exec.Arguments
+        $expectedArguments = '-d WSL_DISTRIBUTION -u WSL_USERNAME ' +
+            '--cd ~ -- rsync -avz --delete --delete-excluded ' +
+            '--exclude=.vexp/ ./code/ ' +
+            '"/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"'
+
+        Assert-Condition ($arguments -ceq $expectedArguments) (
+            'The sync task arguments differ from the documented safe contract.'
+        )
+
+        Assert-Condition ($arguments -match '--exclude=.vexp/') (
+            'The sync task does not exclude generated .vexp directories.'
+        )
+        Assert-Condition ($arguments -match '--delete-excluded') (
+            'The sync task does not remove excluded .vexp destination state.'
+        )
+        Assert-Condition ($arguments -match '-d WSL_DISTRIBUTION') (
+            'The sync task does not use the WSL distribution placeholder.'
+        )
+        Assert-Condition ($arguments -match '-u WSL_USERNAME') (
+            'The sync task does not use the WSL username placeholder.'
+        )
+        Assert-Condition ($arguments -match '--cd ~') (
+            'The sync task does not start in the selected WSL user home.'
+        )
+        Assert-Condition ($arguments -match './code/') (
+            'The sync task does not use the home-relative code source.'
+        )
+        Assert-Condition ($arguments -notmatch '/home/WSL_USERNAME') (
+            'The sync task still assumes that WSL homes are under /home.'
+        )
+    }
+}
+
+Describe 'README manual notification test safety' {
+    BeforeAll {
+        $readmePath = Join-Path (Split-Path -Parent $PSScriptRoot) 'README.md'
+        $readmeContent = Get-Content -LiteralPath $readmePath -Raw
+    }
+
+    It 'requires the scheduled action to match the preflight contract' {
+        Assert-Condition (
+            $readmeContent.Contains(
+                '$syncArguments -cne $expectedSyncArguments'
+            )
+        ) 'The manual test does not compare the complete sync arguments.'
+        Assert-Condition (
+            $readmeContent.Contains(
+                '$syncExecutable -notin @(''wsl'', ''wsl.exe'')'
+            )
+        ) 'The manual test does not validate the sync executable.'
+    }
+
+    It 'requires a fresh task start before accepting its completion event' {
+        Assert-Condition (
+            $readmeContent.Contains(
+                '[string]$syncTask.State -eq ''Running'''
+            )
+        ) 'The manual test does not reject an already-running sync task.'
+        Assert-Condition (
+            $readmeContent.Contains(
+                '$startEvent.RecordId -gt $beforeRecordId'
+            )
+        ) 'The manual test does not require a new Event 100 start record.'
+        Assert-Condition (
+            $readmeContent.Contains(
+                '$completionEvent.RecordId -gt $startEvent.RecordId'
+            )
+        ) 'The manual test does not correlate completion after the fresh start.'
     }
 }

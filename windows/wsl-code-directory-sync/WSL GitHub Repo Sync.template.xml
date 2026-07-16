@@ -45,7 +45,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>wsl.exe</Command>
-      <Arguments>-d Ubuntu -u WSL_USERNAME -- rsync -avz --delete /home/WSL_USERNAME/code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
+      <Arguments>-d WSL_DISTRIBUTION -u WSL_USERNAME --cd ~ -- rsync -avz --delete --delete-excluded --exclude=.vexp/ ./code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
     </Exec>
   </Actions>
 </Task>
