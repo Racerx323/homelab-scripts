@@ -1187,6 +1187,92 @@ If the script reports that an event record was not found, verify the
 `ValueQueries` mapping and the `-EventRecordId "$(EventRecordId)"` action
 argument in the imported notification task.
 
+### Notification Task Exits with Code 1 and No Script Error Is Logged
+
+If the notification task runs but returns exit code `1`, Task Scheduler may be
+passing a missing or invalid `EventRecordId` value. Parameter binding then fails
+before the notification script can write to its log.
+
+Check the registered task's event-value mapping:
+
+```powershell
+$code = @'
+[xml]$taskXml = Export-ScheduledTask `
+    -TaskName 'WSL2.reposync.apprise.notification'
+
+$taskXml.Task.Triggers.EventTrigger.ValueQueries.Value |
+    Select-Object Name, '#text' |
+    Format-List
+'@
+
+& ([scriptblock]::Create($code))
+```
+
+The required output is:
+
+```text
+Name  : EventRecordId
+#text : Event/System/EventRecordID
+```
+
+If the command returns nothing, the registered task is missing its
+`ValueQueries` mapping. Run the following block from an **elevated Windows
+PowerShell session**. It backs up the current task XML before repairing and
+re-registering the task:
+
+```powershell
+$code = @'
+$taskName = 'WSL2.reposync.apprise.notification'
+$backupPath = 'C:\Scripts\WSL2.reposync.apprise.notification.backup.xml'
+
+$taskXml = Export-ScheduledTask -TaskName $taskName
+Set-Content -LiteralPath $backupPath -Value $taskXml -Encoding utf8
+
+if ($taskXml -notmatch '<ValueQueries>') {
+    $valueQueryXml = '</Subscription><ValueQueries><Value name="EventRecordId">Event/System/EventRecordID</Value></ValueQueries>'
+
+    $taskXml = $taskXml.Replace(
+        '</Subscription>',
+        $valueQueryXml
+    )
+
+    Register-ScheduledTask `
+        -TaskName $taskName `
+        -Xml $taskXml `
+        -Force | Out-Null
+}
+
+[xml]$registeredTaskXml = Export-ScheduledTask -TaskName $taskName
+$valueQuery = $registeredTaskXml.Task.Triggers.EventTrigger.ValueQueries.Value
+
+if (
+    $null -eq $valueQuery -or
+    $valueQuery.Name -ne 'EventRecordId' -or
+    $valueQuery.'#text' -ne 'Event/System/EventRecordID'
+) {
+    throw 'The EventRecordId value-query mapping was not registered correctly.'
+}
+
+$valueQuery |
+    Select-Object Name, '#text' |
+    Format-List
+
+Write-Host "Task repaired successfully. Backup: $backupPath"
+'@
+
+& ([scriptblock]::Create($code))
+```
+
+The repair should display the required `EventRecordId` mapping followed by:
+
+```text
+Task repaired successfully. Backup: C:\Scripts\WSL2.reposync.apprise.notification.backup.xml
+```
+
+Trigger a new sync event after the repair. A successful notifier log entry
+should contain `EventID=201`, the new numeric `EventRecordId`, and
+`ResultCode=0`.
+
 ### Sync Task Shows Success but Did Not Actually Sync
 
 Check Event ID `201` for the real action `ResultCode`:
