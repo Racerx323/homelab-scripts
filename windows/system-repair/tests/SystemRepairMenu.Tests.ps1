@@ -1,30 +1,32 @@
-function Assert-Condition {
-    param(
-        [Parameter(Mandatory)][bool]$Condition,
-        [Parameter(Mandatory)][string]$Message
-    )
+BeforeAll {
+    function Assert-Condition {
+        param(
+            [Parameter(Mandatory)][bool]$Condition,
+            [Parameter(Mandatory)][string]$Message
+        )
 
-    if (-not $Condition) {
-        throw $Message
+        if (-not $Condition) {
+            throw $Message
+        }
     }
-}
 
-function Get-LauncherScript {
-    param([Parameter(Mandatory)][string]$RegistryLine)
+    function Get-LauncherScript {
+        param([Parameter(Mandatory)][string]$RegistryLine)
 
-    if ($RegistryLine -notmatch '^@="(.*)"$') {
-        throw "Unable to decode the registry string from: $RegistryLine"
+        if ($RegistryLine -notmatch '^@="(.*)"$') {
+            throw "Unable to decode the registry string from: $RegistryLine"
+        }
+        $decodedRegistryValue = [regex]::Replace(
+            $Matches[1],
+            '\\(["\\])',
+            '$1'
+        )
+
+        if ($decodedRegistryValue -notmatch '-Command "(.+)"$') {
+            throw "Unable to extract the PowerShell launcher from: $RegistryLine"
+        }
+        return $Matches[1]
     }
-    $decodedRegistryValue = [regex]::Replace(
-        $Matches[1],
-        '\\(["\\])',
-        '$1'
-    )
-
-    if ($decodedRegistryValue -notmatch '-Command "(.+)"$') {
-        throw "Unable to extract the PowerShell launcher from: $RegistryLine"
-    }
-    return $Matches[1]
 }
 
 Describe 'System Repair registry installation' {
