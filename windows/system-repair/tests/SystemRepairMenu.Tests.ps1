@@ -1,35 +1,35 @@
-BeforeAll {
-    function Assert-Condition {
-        param(
-            [Parameter(Mandatory)][bool]$Condition,
-            [Parameter(Mandatory)][string]$Message
-        )
-
-        if (-not $Condition) {
-            throw $Message
-        }
-    }
-
-    function Get-LauncherScript {
-        param([Parameter(Mandatory)][string]$RegistryLine)
-
-        if ($RegistryLine -notmatch '^@="(.*)"$') {
-            throw "Unable to decode the registry string from: $RegistryLine"
-        }
-        $decodedRegistryValue = [regex]::Replace(
-            $Matches[1],
-            '\\(["\\])',
-            '$1'
-        )
-
-        if ($decodedRegistryValue -notmatch '-Command "(.+)"$') {
-            throw "Unable to extract the PowerShell launcher from: $RegistryLine"
-        }
-        return $Matches[1]
-    }
-}
-
 Describe 'System Repair registry installation' {
+    BeforeAll {
+        function Assert-Condition {
+            param(
+                [Parameter(Mandatory)][bool]$Condition,
+                [Parameter(Mandatory)][string]$Message
+            )
+
+            if (-not $Condition) {
+                throw $Message
+            }
+        }
+
+        function Get-LauncherScript {
+            param([Parameter(Mandatory)][string]$RegistryLine)
+
+            if ($RegistryLine -notmatch '^@="(.*)"$') {
+                throw "Unable to decode the registry string from: $RegistryLine"
+            }
+            $decodedRegistryValue = [regex]::Replace(
+                $Matches[1],
+                '\\(["\\])',
+                '$1'
+            )
+
+            if ($decodedRegistryValue -notmatch '-Command "(.+)"$') {
+                throw "Unable to extract the PowerShell launcher from: $RegistryLine"
+            }
+            return $Matches[1]
+        }
+    }
+
     BeforeEach {
         $systemRepairDirectory = Split-Path -Parent $PSScriptRoot
         $installFile = Join-Path $systemRepairDirectory 'install-system-repair-menu.reg'
