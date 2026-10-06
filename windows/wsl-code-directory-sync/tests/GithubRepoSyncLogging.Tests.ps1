@@ -1,12 +1,12 @@
 BeforeAll {
-    $wrapperPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
+    $script:wrapperPath = Join-Path (Split-Path -Parent $PSScriptRoot) `
         'github_reposync_logged.ps1'
 }
 
 Describe 'WSL repository sync logging' {
     BeforeEach {
         $logDirectory = Join-Path $TestDrive ([guid]::NewGuid().ToString())
-        $parameters = @{
+        $script:parameters = @{
             Distribution = 'Fixture Distro'
             WslUsername  = 'fixture-user'
             Destination  = '/mnt/c/Users/Fixture User/Documents/GitHub/'
