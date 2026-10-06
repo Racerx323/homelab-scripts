@@ -50,6 +50,8 @@ pwsh.exe -NoProfile `
 | Item | Path |
 | --- | --- |
 | Sync task export | `WSL GitHub Repo Sync.template.xml` |
+| Sync logging wrapper | `C:\Scripts\github_reposync_logged.ps1` |
+| Sync logs | `C:\Scripts\wsl-repo-sync-logs\RUN_ID\` |
 | Notification task export | `WSL2.reposync.apprise.notification.template.xml` |
 | Notification script | `C:\Scripts\github_reposync_apprise_notify.ps1` |
 | Notification log | `C:\Scripts\github_reposync_apprise_notify.log` |
@@ -313,6 +315,8 @@ to the Windows filesystem. `--delete-excluded` also removes previously copied
 ### Sync purpose
 
 Runs `rsync` inside WSL to mirror `~/code/` into the Windows GitHub folder.
+The PowerShell logging wrapper captures the WSL process output and preserves
+its native exit code for the existing notification task.
 
 ### Schedule
 
@@ -329,13 +333,13 @@ Runs `rsync` inside WSL to mirror `~/code/` into the Windows GitHub folder.
 Program:
 
 ```text
-wsl.exe
+pwsh.exe
 ```
 
 Arguments:
 
 ```text
--d WSL_DISTRIBUTION -u WSL_USERNAME --cd ~ -- rsync -avz --delete --delete-excluded --exclude=.vexp/ ./code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"
+-NoProfile -NonInteractive -WindowStyle Hidden -File "C:\Scripts\github_reposync_logged.ps1" -Distribution "WSL_DISTRIBUTION" -WslUsername "WSL_USERNAME" -Destination "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"
 ```
 
 > [!IMPORTANT]
@@ -358,6 +362,54 @@ Notes:
   `/home/WSL_USERNAME`.
 - The trailing slash on `./code/` means "sync the contents of `code`" rather than creating a nested `code` directory at the destination.
 - Task Scheduler reports the action result in Event ID `201`.
+
+### Sync logging and deployment
+
+The wrapper requires PowerShell 7.2 or newer. Copy `github_reposync_logged.ps1`
+from this directory to `C:\Scripts\github_reposync_logged.ps1` before updating
+the scheduled action. Keep the script outside both mirrored trees.
+
+Each invocation creates a unique directory under `C:\Scripts\wsl-repo-sync-logs`:
+
+- `stdout.log`: WSL/rsync standard output, including filenames and transfer totals.
+- `stderr.log`: WSL/rsync diagnostics, including failed paths and operations.
+- `run.json`: UTC start/end times, exact WSL argument array, dry-run flag,
+  native exit code, and any wrapper exception.
+
+The summary starts with `Status: Running` and ends with `Status: Completed` and
+the native exit code. `Completed` means the process exited; check `ExitCode` for
+success. `WrapperFailed` identifies a wrapper or launch exception. An unfinished
+summary can indicate that the process was forcibly stopped. Startup failures
+before the wrapper runs, including execution-policy errors, cannot be logged
+by the wrapper.
+
+Logging initialization must succeed before WSL starts. A final logging failure
+returns `1` if WSL succeeded; an existing nonzero WSL exit code is preserved.
+Native exit `23` remains a failure and still triggers the existing notifier.
+Logs remain on disk until removed; periodically archive or remove old completed
+run directories. They contain local paths, so retain them as private evidence.
+If overriding `-LogDirectory`, choose a writable directory outside both mirrors.
+
+Before installing the action, test logging with a dry run from Windows
+PowerShell 7, replacing all three placeholders:
+
+```powershell
+pwsh.exe -NoProfile -NonInteractive `
+    -File 'C:\Scripts\github_reposync_logged.ps1' `
+    -Distribution 'WSL_DISTRIBUTION' -WslUsername 'WSL_USERNAME' `
+    -Destination '/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/' -DryRun
+$LASTEXITCODE
+```
+
+Review the new run directory and its proposed changes. A dry run does not copy
+or delete files and cannot validate destination writes.
+
+For an existing task, export its current definition to a unique backup before
+editing its action. Refuse the update while it is running. Change only the
+program and arguments to the values above, leaving its schedule, principal,
+settings, and notification task intact. For a new task, import the updated XML
+template after substituting its placeholders. Updating a template in this
+repository does not change an already registered Windows task.
 
 ### Sync XML template
 
@@ -478,8 +530,8 @@ SID is used in `<UserId>`.
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>wsl.exe</Command>
-      <Arguments>-d WSL_DISTRIBUTION -u WSL_USERNAME --cd ~ -- rsync -avz --delete --delete-excluded --exclude=.vexp/ ./code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
+      <Command>pwsh.exe</Command>
+      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -File "C:\Scripts\github_reposync_logged.ps1" -Distribution "WSL_DISTRIBUTION" -WslUsername "WSL_USERNAME" -Destination "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
     </Exec>
   </Actions>
 </Task>
@@ -490,9 +542,10 @@ SID is used in `<UserId>`.
 ### Notification purpose
 
 Runs a PowerShell script when the sync task completes. The event trigger passes
-the unique Event 201 record ID to the script. The script loads only that record,
-extracts its action `ResultCode`, suppresses duplicate retries, and posts a
-notification to Apprise.
+the unique Event 201 record ID to the script. The script reads that record's
+action `ResultCode`, suppresses duplicate retries, and posts a notification to
+Apprise. For failures, it also uses the matching Event 200 to correlate the
+logging wrapper's run and derive diagnostic details.
 
 ### Recommended Event Trigger
 
@@ -599,155 +652,45 @@ mapping. Leave both the `$()` syntax and the `EventRecordId` name unchanged.
 
 ### Notification Script
 
-Save as:
+Copy [github_reposync_apprise_notify.ps1](github_reposync_apprise_notify.ps1)
+to `C:\Scripts\github_reposync_apprise_notify.ps1`. The script is the canonical
+source; the registered notification action continues to pass `-AppriseUrl`
+and `-EventRecordId` as described above.
 
-```text
-C:\Scripts\github_reposync_apprise_notify.ps1
-```
+Notifications follow the [Caddy/Keepalived alert content contract](../../../homelab-server-configs/Caddy/docs/APPRISE_DELIVERY.md):
 
-```powershell
-param(
-    [string]$AppriseUrl = 'http://APPRISE_HOST:8000/notify/apprise',
-    [Parameter(Mandatory)]
-    [ValidateRange(1, 9223372036854775807)]
-    [long]$EventRecordId,
-    [ValidateNotNullOrEmpty()]
-    [string]$StorageDirectory = 'C:\Scripts',
-    [Parameter(DontShow)]
-    [scriptblock]$EventReader = {
-        param($LogName, $FilterXPath)
-        Get-WinEvent -LogName $LogName -FilterXPath $FilterXPath `
-            -ErrorAction SilentlyContinue
-    },
-    [Parameter(DontShow)]
-    [scriptblock]$RequestInvoker = {
-        param($Uri, $Body)
-        Invoke-RestMethod -Method Post -Uri $Uri -Body $Body -TimeoutSec 15 `
-            -StatusCodeVariable statusCode | Out-Null
-        return $statusCode
-    }
-)
+- Severity title: `🚨 [Replication] failure on HOST` or
+  `✅ [Replication] success on HOST`.
+- Plain-text payload with `title`, `body`, `type`, and `format: text`.
+- Multiline Summary, Impact, Details, and Next step sections. HA/network
+  sections are omitted because they do not describe this task.
+- Bounded fields, a title limit of 256 characters, and a body limit of 2048
+  characters. Full command output remains in the private run logs.
 
-$ErrorActionPreference = 'Stop'
+Failure alerts include the action result, native exit code, observation time,
+correlation identity, and an evidence pointer. When logs identify a recognized
+filesystem error, the alert adds its failure class, operation, path, and reason.
+A WSL error code is reported when present. Unknown diagnostics remain available
+in `stderr.log`; wrapper exceptions remain in `run.json`.
 
-$TaskName = "\WSL GitHub Repo Sync"
-$LogPath = "Microsoft-Windows-TaskScheduler/Operational"
-$LogFile = Join-Path $StorageDirectory 'github_reposync_apprise_notify.log'
-$StateFile = Join-Path $StorageDirectory 'github_reposync_apprise_notify.processed-events.json'
+The notifier reads `C:\Scripts\wsl-repo-sync-logs` by default. If the logging
+wrapper uses a different directory, also pass that path as `-SyncLogDirectory`
+to the notification script.
 
-if ($AppriseUrl -match 'APPRISE_HOST') {
-    throw 'Set -AppriseUrl to your Apprise API endpoint before running this script.'
-}
+Log correlation requires one Event 200 for the same task instance as Event 201,
+a PowerShell action, and exactly one completed, non-dry-run wrapper summary
+with the same native exit code. The wrapper must start within 30 seconds after
+the action-start event and finish within 30 seconds before the completion
+event. Stale, unfinished, dry-run, malformed, oversized, and ambiguous records
+are not attached. If no run matches, the failure alert still sends and points
+to the exact Task Scheduler event; it does not substitute the newest log.
 
-if (-not (Test-Path -LiteralPath $StorageDirectory)) {
-    New-Item -ItemType Directory -Path $StorageDirectory -Force | Out-Null
-}
-
-function Write-NotifyLog {
-    param([string]$Message)
-
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -LiteralPath $LogFile -Value "[$timestamp] $Message"
-}
-
-function Format-ResultCode {
-    param($Code)
-
-    if ($null -eq $Code -or $Code -eq '') {
-        return 'unknown'
-    }
-
-    $codeText = [string]$Code
-    if ($codeText -match '^\d+$' -and [int64]$codeText -gt 2147483647) {
-        return ("0x{0:X}" -f [int64]$codeText)
-    }
-
-    return $codeText
-}
-
-function Get-EventDataValue {
-    param(
-        [object]$Event,
-        [string]$Name
-    )
-
-    $xml = [xml]$Event.ToXml()
-    $node = $xml.Event.EventData.Data | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
-    return $node.'#text'
-}
-
-try {
-    $eventFilter = "*[System[(EventID=201) and (EventRecordID=$EventRecordId)]]"
-    $Event = & $EventReader $LogPath $eventFilter |
-        Where-Object { (Get-EventDataValue -Event $_ -Name 'TaskName') -eq $TaskName } |
-        Select-Object -First 1
-
-    if (-not $Event) {
-        throw "Event 201 record $EventRecordId was not found for $TaskName."
-    }
-
-    # Include the UTC event timestamp so a cleared event log can legitimately
-    # reuse a lower record ID without colliding with the previous generation.
-    $eventKey = '{0}|{1}' -f $Event.RecordId, $Event.TimeCreated.ToUniversalTime().Ticks
-    $processedEventKeys = @()
-    if (Test-Path -LiteralPath $StateFile) {
-        try {
-            $state = Get-Content -LiteralPath $StateFile -Raw |
-                ConvertFrom-Json -ErrorAction Stop
-            if ($state.LogPath -eq $LogPath) {
-                $processedEventKeys = @($state.ProcessedEventKeys)
-            }
-        }
-        catch {
-            throw "Unable to read notification state file '$StateFile': $($_.Exception.Message)"
-        }
-    }
-
-    if ($processedEventKeys -contains $eventKey) {
-        Write-NotifyLog "Skipped duplicate notification for EventKey=$eventKey."
-        return
-    }
-
-    $EventID = $Event.Id
-    $ResultCode = 'unknown'
-    $rawResultCode = Get-EventDataValue -Event $Event -Name 'ResultCode'
-    $ResultCode = Format-ResultCode $rawResultCode
-
-    if ([string]$rawResultCode -eq '0') {
-        $Type = 'success'
-        $Title = "Task Success: $TaskName"
-        $Body = "The repo sync action completed successfully. Exit Code: $ResultCode"
-    } else {
-        $Type = 'failure'
-        $Title = "Task FAILURE: $TaskName"
-        $Body = "The repo sync action completed with a non-zero exit code. Exit Code: $ResultCode"
-    }
-
-    $Payload = @{
-        title = $Title
-        body  = $Body
-        type  = $Type
-    }
-
-    $statusCode = & $RequestInvoker $AppriseUrl $Payload
-    if ($statusCode -ne 200) {
-        throw "Apprise returned HTTP $statusCode; expected HTTP 200."
-    }
-
-    $statePayload = @{
-        LogPath            = $LogPath
-        ProcessedEventKeys = @($processedEventKeys) + $eventKey
-    } | ConvertTo-Json -Depth 3
-    $temporaryStateFile = "$StateFile.tmp"
-    Set-Content -LiteralPath $temporaryStateFile -Value $statePayload -Encoding utf8
-    Move-Item -LiteralPath $temporaryStateFile -Destination $StateFile -Force
-    Write-NotifyLog "Sent $Type notification for EventID=$EventID EventRecordId=$EventRecordId ResultCode=$ResultCode."
-}
-catch {
-    Write-NotifyLog "ERROR: $($_.Exception.Message)"
-    throw
-}
-```
+Diagnostic reads use only the last 8 KiB of the matched `stderr.log`. Alerts
+contain up to three derived diagnostics, exclude raw output, remove control
+characters from displayed paths, and omit recognized sensitive assignments.
+The matching log directory and a first-check command provide access to complete
+private evidence. Existing event deduplication and delivery-state handling
+remain in place.
 
 ### Notification XML template
 
@@ -826,7 +769,7 @@ notification task.
 
 ## Validation
 
-Run the notification-flow regression suite from PowerShell 7 on Windows. The
+Run the notification and logging regression suites from PowerShell 7 on Windows. The
 test suite requires Pester 5.5 or newer, but not Pester 6. Check the installed
 versions first:
 
@@ -890,13 +833,17 @@ try {
     Get-ChildItem -LiteralPath $stagedDirectory -File -Recurse |
         Unblock-File
 
-    $testPath = Join-Path $stagedDirectory `
-        'tests\GithubRepoSyncNotify.Tests.ps1'
-    if (-not (Test-Path -LiteralPath $testPath -PathType Leaf)) {
-        throw "Staged Pester test file was not found at '$testPath'."
+    $testPaths = @(
+        (Join-Path $stagedDirectory 'tests\GithubRepoSyncNotify.Tests.ps1'),
+        (Join-Path $stagedDirectory 'tests\GithubRepoSyncLogging.Tests.ps1')
+    )
+    foreach ($testPath in $testPaths) {
+        if (-not (Test-Path -LiteralPath $testPath -PathType Leaf)) {
+            throw "Staged Pester test file was not found at '$testPath'."
+        }
     }
 
-    Invoke-Pester -Path $testPath -CI
+    Invoke-Pester -Path $testPaths -CI
 }
 finally {
     if (Test-Path -LiteralPath $stagingRoot) {
@@ -915,6 +862,9 @@ Review the stored test code, then execute it:
 The suite covers exact event correlation, missing events, duplicate replay,
 malformed state, Apprise exceptions and non-200 responses, successful logging,
 and state persistence without contacting a live Apprise service.
+The logging suite uses simulated WSL invocations and a harmless native fixture
+to check stdout/stderr capture, exit-code preservation, dry runs, and logging
+failures. It does not run the real sync.
 
 ### Check Registered Tasks
 
@@ -1073,10 +1023,10 @@ if ($syncTask.Actions.Count -ne 1) {
 $syncAction = $syncTask.Actions[0]
 $syncExecutable = [IO.Path]::GetFileName([string]$syncAction.Execute)
 $syncArguments = [string]$syncAction.Arguments
-$expectedSyncArguments = "-d $distro -u $wslUsername --cd ~ -- rsync -avz --delete --delete-excluded --exclude=.vexp/ ./code/ `"$wslDestination`""
+$expectedSyncArguments = "-NoProfile -NonInteractive -WindowStyle Hidden -File `"C:\Scripts\github_reposync_logged.ps1`" -Distribution `"$distro`" -WslUsername `"$wslUsername`" -Destination `"$wslDestination`""
 
 if (
-    $syncExecutable -notin @('wsl', 'wsl.exe') -or
+    $syncExecutable -notin @('pwsh', 'pwsh.exe') -or
     $syncArguments -cne $expectedSyncArguments
 ) {
     throw 'Update the sync task action before running this manual test.'
@@ -1148,6 +1098,21 @@ Review the stored test code, then execute it:
 Check the Apprise notification and the script log.
 
 ## Troubleshooting
+
+### Sync Task Returns a Nonzero Exit Code
+
+Open the newest directory under `C:\Scripts\wsl-repo-sync-logs`. Check
+`run.json` for the native `ExitCode`, then read `stderr.log` for the failing
+paths and operations. Keep `stdout.log` for context.
+
+For this task, native exit `23` indicates rsync's "Partial transfer due to
+error". Event 201 can represent the same result as `2147942423` /
+`0x80070017`. That hexadecimal value alone does not establish a disk CRC
+fault. Diagnose the rsync error before changing permissions or exclusions.
+
+If no run directory exists, check whether the registered action uses the
+wrapper, whether the script exists at the configured path, and whether the
+task account can run PowerShell 7.2 or newer and write to the log directory.
 
 ### Notification Task Does Not Fire
 
@@ -1318,6 +1283,8 @@ Update the notification task trigger to use Event ID `201`. This is the custom X
 
 - Re-export both Task Scheduler XML files after changing task configuration.
 - Keep `C:\Scripts\github_reposync_apprise_notify.ps1` backed up with the task XML exports.
+- Keep `C:\Scripts\github_reposync_logged.ps1` with the task exports and retain
+  failed-run logs until their errors have been reviewed.
 - If the Apprise server IP changes, update `$AppriseUrl` in the PowerShell script.
 - If the sync task name changes, update both the notification task event filter and `$TaskName` in the script.
 - Keep the event trigger's `EventRecordId` value query and action argument in

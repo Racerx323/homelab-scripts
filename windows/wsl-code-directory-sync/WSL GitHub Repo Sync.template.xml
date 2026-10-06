@@ -44,8 +44,8 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>wsl.exe</Command>
-      <Arguments>-d WSL_DISTRIBUTION -u WSL_USERNAME --cd ~ -- rsync -avz --delete --delete-excluded --exclude=.vexp/ ./code/ "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
+      <Command>pwsh.exe</Command>
+      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -File "C:\Scripts\github_reposync_logged.ps1" -Distribution "WSL_DISTRIBUTION" -WslUsername "WSL_USERNAME" -Destination "/mnt/c/Users/WINDOWS_USERNAME/Documents/GitHub/"</Arguments>
     </Exec>
   </Actions>
 </Task>

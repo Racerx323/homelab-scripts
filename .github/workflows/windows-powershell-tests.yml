@@ -41,6 +41,7 @@ jobs:
           $configuration.Run.Path = @(
               './windows/system-repair/tests/SystemRepairMenu.Tests.ps1'
               './windows/wsl-code-directory-sync/tests/GithubRepoSyncNotify.Tests.ps1'
+              './windows/wsl-code-directory-sync/tests/GithubRepoSyncLogging.Tests.ps1'
           )
           $configuration.Run.Exit = $true
           $configuration.Output.Verbosity = 'Detailed'
