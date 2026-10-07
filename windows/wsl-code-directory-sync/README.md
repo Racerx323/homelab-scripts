@@ -1,12 +1,18 @@
 # WSL GitHub Repo Sync Task Scheduler and Notification Setup
 
-This document describes two Windows Task Scheduler tasks:
+This document describes the Windows Task Scheduler tasks for mirroring and
+notifications, plus an optional prerequisite repair task:
 
 - `\WSL GitHub Repo Sync`: syncs repos from the selected WSL distribution to
   `C:\Users\WINDOWS_USERNAME\Documents\GitHub`.
 - `\WSL2.reposync.apprise.notification`: watches the sync task and sends an Apprise notification when the sync action completes.
+- `\Ensure Task Scheduler Operational Log Enabled`: optional startup/daily
+  repair that re-enables the event channel used by the notification trigger.
 
 The notification task depends on the `Microsoft-Windows-TaskScheduler/Operational` event log. If that log is disabled, the sync task can run normally but the notification task will not trigger.
+After Windows servicing, recheck this prerequisite. See
+[post-update recovery](#notification-task-does-not-fire) and the
+[startup/daily repair task](#optional-task-3-preserve-task-scheduler-operational-logging).
 
 ## Sync intent and source of truth
 
@@ -134,6 +140,10 @@ Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' |
     Select-Object LogName, IsEnabled, RecordCount, LastWriteTime
 ```
 
+One successful enablement does not establish that the channel stays enabled
+after later servicing. The [optional repair task](#optional-task-3-preserve-task-scheduler-operational-logging)
+reapplies this setting independently of the notification event trigger.
+
 Before importing either task, sign in as
 `WINDOWS_DOMAIN\WINDOWS_USERNAME` and validate the exact distribution, Linux
 identity, source directory, and `rsync` command that the task will use:
@@ -193,13 +203,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "rsync availability check failed with exit code $LASTEXITCODE."
 }
 
-wsl.exe -d $distro -u $wslUsername --cd ~ -- test -d $wslSource
+wsl.exe -d $distro -u $wslUsername --cd '~' -- test -d $wslSource
 
 if ($LASTEXITCODE -ne 0) {
     throw "The WSL source directory '$wslSource' does not exist."
 }
 
-wsl.exe -d $distro -u $wslUsername --cd ~ -- rsync -avz `
+wsl.exe -d $distro -u $wslUsername --cd '~' -- rsync -avz `
     --dry-run --itemize-changes `
     --delete --delete-excluded '--exclude=.vexp/' `
     $wslSource `
@@ -273,7 +283,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "rsync availability check failed with exit code $LASTEXITCODE."
 }
 
-wsl.exe -d $distro -u $wslUsername --cd ~ -- test -d $wslSource
+wsl.exe -d $distro -u $wslUsername --cd '~' -- test -d $wslSource
 
 if ($LASTEXITCODE -ne 0) {
     throw "The WSL source directory '$wslSource' does not exist."
@@ -282,7 +292,7 @@ if ($LASTEXITCODE -ne 0) {
 New-Item -ItemType Directory -Force `
     -Path $windowsDestination | Out-Null
 
-wsl.exe -d $distro -u $wslUsername --cd ~ -- rsync -avz --delete `
+wsl.exe -d $distro -u $wslUsername --cd '~' -- rsync -avz --delete `
     --delete-excluded '--exclude=.vexp/' `
     $wslSource `
     $wslDestination
@@ -360,6 +370,10 @@ Notes:
 - `--cd ~` resolves the selected WSL user's actual home directory before
   running rsync; `./code/` therefore does not assume the home is under
   `/home/WSL_USERNAME`.
+- PowerShell 7.6 expands an array-splatted `~` to the Windows home directory.
+  The wrapper passes `--cd '~'` as a quoted literal in its native call and
+  splats the identity and rsync arguments separately. Keep this quoting in
+  direct PowerShell commands too.
 - The trailing slash on `./code/` means "sync the contents of `code`" rather than creating a nested `code` directory at the destination.
 - Task Scheduler reports the action result in Event ID `201`.
 
@@ -767,6 +781,92 @@ notification task.
 </Task>
 ```
 
+## Optional Task 3: Preserve Task Scheduler Operational Logging
+
+A previously resolved, operator-reported incident left the Operational channel
+disabled after a Windows update. The sync task could still run, but its
+event-driven notification task did not trigger. This records the observed
+failure mode; it does not claim that every Windows update disables the channel
+or that this is a current incident.
+
+The durable configuration is a small repair task that re-enables the channel
+at Windows startup and daily at 3:00 AM, before the documented 4:00 AM sync.
+These are local Windows times. It runs as `SYSTEM` and uses startup/calendar
+triggers, so it does not depend on the Operational log being enabled.
+
+Run the following from **PowerShell as Administrator**. Review any existing
+task with this name before using `-Force`; use it only to create or update this
+owned repair definition. Registering it changes Windows task configuration.
+
+```powershell
+$action = New-ScheduledTaskAction `
+    -Execute "$env:SystemRoot\System32\wevtutil.exe" `
+    -Argument 'sl Microsoft-Windows-TaskScheduler/Operational /e:true'
+
+$triggers = @(
+    New-ScheduledTaskTrigger -AtStartup
+    New-ScheduledTaskTrigger -Daily -At 3am
+)
+
+$principal = New-ScheduledTaskPrincipal `
+    -UserId 'SYSTEM' `
+    -LogonType ServiceAccount `
+    -RunLevel Highest
+
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+
+Register-ScheduledTask `
+    -TaskName 'Ensure Task Scheduler Operational Log Enabled' `
+    -Description 'Re-enables the Task Scheduler Operational event channel if Windows servicing disables it.' `
+    -Action $action `
+    -Trigger $triggers `
+    -Principal $principal `
+    -Settings $settings `
+    -Force
+```
+
+Enable the channel now and request a test run of the repair task. This test
+does not start the repository sync:
+
+```powershell
+wevtutil sl Microsoft-Windows-TaskScheduler/Operational /e:true
+
+Start-ScheduledTask -TaskName 'Ensure Task Scheduler Operational Log Enabled'
+Start-Sleep -Seconds 2
+
+wevtutil gl Microsoft-Windows-TaskScheduler/Operational |
+    Select-String 'enabled'
+```
+
+Expected channel configuration:
+
+```text
+enabled: true
+```
+
+Verify the repair task's run separately:
+
+```powershell
+Get-ScheduledTask -TaskName 'Ensure Task Scheduler Operational Log Enabled' |
+    Select-Object TaskName, State
+Get-ScheduledTaskInfo -TaskName 'Ensure Task Scheduler Operational Log Enabled' |
+    Select-Object LastRunTime, LastTaskResult
+```
+
+If it is still running after two seconds, wait and repeat these readbacks.
+Accept `LastTaskResult: 0` only after `LastRunTime` reflects this test and the
+run has finished. Also confirm the registered action, both triggers, and
+`SYSTEM` principal; a zero result from an older run is insufficient.
+
+Reapplying the supported `wevtutil` setting is preferable to relying on a
+one-time registry edit. The startup/daily schedule reduces the disabled-channel
+window; it does not continuously enforce the setting. If servicing disables
+the channel after the daily check, recover it manually or wait for the next
+repair trigger. Enabling the log does not reconstruct events missed while it
+was disabled or prove that a notification was delivered.
+
 ## Validation
 
 Run the notification and logging regression suites from PowerShell 7 on Windows. The
@@ -865,6 +965,9 @@ and state persistence without contacting a live Apprise service.
 The logging suite uses simulated WSL invocations and a harmless native fixture
 to check stdout/stderr capture, exit-code preservation, dry runs, and logging
 failures. It does not run the real sync.
+The native argument regression executes the production invoker against a
+harmless native fixture and verifies that `~` and paths with spaces survive
+argument binding unchanged.
 
 ### Check Registered Tasks
 
@@ -978,6 +1081,11 @@ TcpTestSucceeded : True
 
 ### Test the Notification Script Manually
 
+To inspect an existing completion without starting another sync, use the
+[real-record procedure](#manual-script-check-with-a-real-recordid). An already
+processed event is deduplicated. The controlled fresh-run test below is for
+testing a new completion and notification.
+
 Temporarily disable the automatic notification task, record the current Event
 201 boundary, run the sync task, and wait for a newer matching record. This
 prevents the manual notifier from reading a previous sync run:
@@ -1046,7 +1154,7 @@ try {
     $beforeRecordId = if ($boundaryEvent) { $boundaryEvent.RecordId } else { 0 }
 
     Start-ScheduledTask -TaskName $syncTaskName
-    $deadline = (Get-Date).AddMinutes(10)
+    $deadline = (Get-Date).AddHours(1)
 
     do {
         Start-Sleep -Seconds 2
@@ -1116,7 +1224,11 @@ task account can run PowerShell 7.2 or newer and write to the log directory.
 
 ### Notification Task Does Not Fire
 
-Confirm Task Scheduler history is enabled:
+First check the Operational channel, including after Windows updates or
+servicing. A disabled channel was the cause of a previously resolved incident;
+it prevents the event-driven notification even when the sync itself runs.
+
+From an **Administrator terminal**, inspect the setting:
 
 ```powershell
 wevtutil gl Microsoft-Windows-TaskScheduler/Operational
@@ -1128,11 +1240,78 @@ If `enabled: false`, run:
 wevtutil sl Microsoft-Windows-TaskScheduler/Operational /e:true
 ```
 
-Then confirm new events are being written:
+Re-enabling the channel allows future completion events; it does not replay a
+sync that finished while logging was disabled.
+
+> [!WARNING]
+> The next command starts the real mirror and can delete files from the Windows
+> destination. Confirm that a sync is intended, that it is not already running,
+> and that the documented dry-run review has passed before requesting it.
+
+Trigger the dependency task:
+
+```powershell
+schtasks.exe /Run /TN "\WSL GitHub Repo Sync"
+```
+
+This requests a start; it does not wait for completion. After the sync finishes,
+its Event 201 should trigger the enabled notification task automatically. Check
+the task and the notifier log:
+
+```powershell
+schtasks.exe /Query /TN "\WSL2.reposync.apprise.notification" /V /FO LIST
+Get-Content -LiteralPath 'C:\Scripts\github_reposync_apprise_notify.log' -Tail 10
+```
+
+Confirm new events are being written as well:
 
 ```powershell
 wevtutil qe Microsoft-Windows-TaskScheduler/Operational /c:5 /rd:true /f:text
 ```
+
+For recurrence prevention, use the
+[startup/daily repair task](#optional-task-3-preserve-task-scheduler-operational-logging).
+If the channel is enabled but the task still does not trigger, inspect its
+registered Event 201 subscription and `EventRecordId` value mapping.
+
+#### Manual script check with a real RecordId
+
+`201` identifies the event type. `RecordId` identifies the particular
+occurrence that the script must process. Do not pass `201` merely because it
+is the event type; use the actual matching record's number.
+
+Filter for this task before selecting the newest result, so activity from other
+tasks cannot exhaust a limit of 20 general completion events:
+
+```powershell
+$eventXPath = "*[System[(EventID=201)]] and *[EventData[Data[@Name='TaskName']='\WSL GitHub Repo Sync']]"
+$event = Get-WinEvent `
+    -LogName 'Microsoft-Windows-TaskScheduler/Operational' `
+    -FilterXPath $eventXPath `
+    -MaxEvents 1 `
+    -ErrorAction SilentlyContinue
+
+if (-not $event) {
+    throw 'No matching completion record was found. Check channel enablement and a completed sync run.'
+}
+
+$event | Select-Object Id, RecordId, TimeCreated
+```
+
+Pass `$event.RecordId` to the installed script. This example uses the configured
+local Apprise endpoint; use the endpoint from your registered notification
+action if it differs:
+
+```powershell
+& 'C:\Scripts\github_reposync_apprise_notify.ps1' `
+    -AppriseUrl 'http://10.1.3.83:8000/notify/apprise' `
+    -EventRecordId $event.RecordId
+```
+
+This can send a real notification for an unprocessed event. If the automatic
+task already processed that record, the script logs `Skipped duplicate
+notification` and sends nothing. Do not clear production deduplication state
+to force a replay; use the controlled fresh-run test or an isolated fixture test.
 
 ### Notification Task Runs but No Notification Arrives
 
@@ -1281,6 +1460,9 @@ Update the notification task trigger to use Event ID `201`. This is the custom X
 
 ## Maintenance Notes
 
+- After Windows servicing, verify the Operational channel is enabled. If the
+  optional repair task is installed, check its startup/daily triggers and a
+  recent successful run; do not assume installation from this runbook alone.
 - Re-export both Task Scheduler XML files after changing task configuration.
 - Keep `C:\Scripts\github_reposync_apprise_notify.ps1` backed up with the task XML exports.
 - Keep `C:\Scripts\github_reposync_logged.ps1` with the task exports and retain

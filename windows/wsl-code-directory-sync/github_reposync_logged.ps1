@@ -14,7 +14,10 @@ param(
     [Parameter(DontShow)]
     [scriptblock]$WslInvoker = {
         param($Arguments, $StdoutPath, $StderrPath)
-        & wsl.exe @Arguments 1> $StdoutPath 2> $StderrPath
+        $identityArguments = $Arguments[0..3]
+        $commandArguments = $Arguments[7..($Arguments.Count - 1)]
+        # Array-splatted ~ expands to the Windows home in PowerShell 7.6.
+        & wsl.exe @identityArguments --cd '~' -- @commandArguments 1> $StdoutPath 2> $StderrPath
         return $LASTEXITCODE
     }
 )

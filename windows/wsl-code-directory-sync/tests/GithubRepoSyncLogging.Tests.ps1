@@ -63,6 +63,47 @@ Describe 'WSL repository sync logging' {
         )
     }
 
+    It 'passes a literal tilde through the production native invocation' {
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile(
+            $wrapperPath, [ref]$tokens, [ref]$parseErrors
+        )
+        $invokerParameter = $ast.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'WslInvoker' }
+        $productionInvoker = $invokerParameter.DefaultValue.ScriptBlock.GetScriptBlock()
+        $fixture = Join-Path $TestDrive 'capture native arguments.ps1'
+        Set-Content -LiteralPath $fixture -Value @'
+ConvertTo-Json -InputObject @($args) -Compress
+[Console]::Error.WriteLine('native fixture stderr')
+exit 23
+'@
+        $nativeExecutable = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+        $stdout = Join-Path $TestDrive 'native-arguments.json'
+        $stderr = Join-Path $TestDrive 'native-stderr.log'
+        $nativeArguments = @('-NoProfile', '-NonInteractive', '-File', $fixture,
+            '--cd', '~', '--', 'argument with spaces')
+        $previousAlias = Get-Alias -Name wsl.exe -ErrorAction SilentlyContinue
+        $PSNativeCommandUseErrorActionPreference = $false
+        try {
+            # A harmless native process receives the real production call's argv.
+            Set-Alias -Name wsl.exe -Value $nativeExecutable -Scope Global
+            $result = & $productionInvoker $nativeArguments $stdout $stderr
+            $result | Should -Be 23
+            $received = Get-Content -LiteralPath $stdout -Raw | ConvertFrom-Json
+            ($received | ConvertTo-Json -Compress) | Should -Be (
+                @('--cd', '~', '--', 'argument with spaces') | ConvertTo-Json -Compress
+            )
+            Get-Content -LiteralPath $stderr -Raw | Should -Match 'native fixture stderr'
+        }
+        finally {
+            Remove-Item -LiteralPath 'Alias:\wsl.exe' -Force
+            if ($previousAlias) {
+                Set-Alias -Name wsl.exe -Value $previousAlias.Definition -Scope Global
+            }
+        }
+    }
+
     It 'adds only the dry-run option for a diagnostic run' {
         $invoker = { param($Arguments, $StdoutPath, $StderrPath) 0 }
 
