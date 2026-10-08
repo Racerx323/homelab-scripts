@@ -58,6 +58,7 @@ Describe 'WSL repository sync logging' {
         ($summary.Arguments | ConvertTo-Json -Compress) | Should -Be (
             @('-d', 'Fixture Distro', '-u', 'fixture-user', '--cd', '~', '--',
                 'rsync', '-avz', '--delete', '--delete-excluded', '--exclude=.vexp/',
+                '--exclude=.caddy-evidence/', '--exclude=.local-evidence/',
                 './code/', '/mnt/c/Users/Fixture User/Documents/GitHub/') |
                 ConvertTo-Json -Compress
         )
@@ -114,7 +115,7 @@ exit 23
             ConvertFrom-Json
         $summary.DryRun | Should -BeTrue
         $summary.Arguments | Should -Contain '--dry-run'
-        $summary.Arguments.Count | Should -Be 15
+        $summary.Arguments.Count | Should -Be 17
         $summary.Arguments[-2] | Should -Be './code/'
         $summary.Arguments[-1] | Should -Be $parameters.Destination
     }

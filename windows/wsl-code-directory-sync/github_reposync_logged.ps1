@@ -31,7 +31,8 @@ $summary = $null
 try {
     $wslArguments = @(
         '-d', $Distribution, '-u', $WslUsername, '--cd', '~', '--',
-        'rsync', '-avz', '--delete', '--delete-excluded', '--exclude=.vexp/'
+        'rsync', '-avz', '--delete', '--delete-excluded', '--exclude=.vexp/',
+        '--exclude=.caddy-evidence/', '--exclude=.local-evidence/'
     )
     if ($DryRun) {
         $wslArguments += '--dry-run'
